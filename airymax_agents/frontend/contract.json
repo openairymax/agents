@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "agent_id": "com.airymax.frontend.v1",
+  "agent_id": "frontend_v1",
   "agent_name": "Frontend Agent",
   "version": "1.0.0",
   "role": "frontend",

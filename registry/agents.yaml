@@ -1,0 +1,170 @@
+# =============================================================================
+# Airymax Agent 执行体注册表 — 运行时单一可信源
+# 版本: v1.0.0
+# 最后更新: 2026-07-31
+# 规范: docs/AirymaxRT/20-modules/10-contracts/01-agent-contract.md (v1.0.0)
+# Schema: shared/contracts/agent.schema.json
+# =============================================================================
+# 本文件是运行时（agent_d / sched_d / sdk-python）查询执行体清单的入口。
+# 仅保留运行时路由所需的最小字段；完整契约（capabilities 的 input/output
+# schema、cost_profile、trust_metrics 等）请查阅各 Agent 的 contract.json。
+#
+# 与 ecosystem/manager/agent/registry.yaml 的关系：
+#   - manager/agent/registry.yaml 保留 _owner / _metadata / 资源限制 / 信任指标
+#     等运维侧字段，归 Manager 模块治理。
+#   - 本文件聚焦执行体本身（agent_id / role / contract_path / enabled），
+#     归 Airymax Agent 标准治理。
+# =============================================================================
+
+schema_version: "1.0.0"
+last_updated: "2026-07-31"
+
+# 统计（供 observability 与 CI 校验）
+_summary:
+  total_agents: 12
+  enabled_agents: 7
+  planned_agents: 5
+  python_implemented: 7
+  rust_implemented: 0
+
+# =============================================================================
+# 执行体清单
+# =============================================================================
+agents:
+
+  # ── 已实现 (Python, ecosystem/agents/airymax_agents/) ──────────────────
+
+  - agent_id: "product_manager_v1"
+    role: "product_manager"
+    source: "builtin"
+    language: "python"
+    version: "1.0.0"
+    enabled: true
+    implementation_status: "implemented"
+    contract_path: "ecosystem/agents/airymax_agents/product_manager/contract.json"
+    description: "理解用户需求，撰写产品需求文档 (PRD)，拆解用户故事，规划产品路线图。"
+
+  - agent_id: "architect_v1"
+    role: "architect"
+    source: "builtin"
+    language: "python"
+    version: "1.0.0"
+    enabled: true
+    implementation_status: "implemented"
+    contract_path: "ecosystem/agents/airymax_agents/architect/contract.json"
+    description: "系统架构设计、技术选型、架构评审。"
+
+  - agent_id: "frontend_v1"
+    role: "frontend"
+    source: "builtin"
+    language: "python"
+    version: "1.0.0"
+    enabled: true
+    implementation_status: "implemented"
+    contract_path: "ecosystem/agents/airymax_agents/frontend/contract.json"
+    description: "UI 实现、组件设计、状态管理。"
+
+  - agent_id: "backend_v1"
+    role: "backend"
+    source: "builtin"
+    language: "python"
+    version: "1.0.0"
+    enabled: true
+    implementation_status: "implemented"
+    contract_path: "ecosystem/agents/airymax_agents/backend/contract.json"
+    description: "API 设计、服务端逻辑、数据库实现。"
+
+  - agent_id: "tester_v1"
+    role: "tester"
+    source: "builtin"
+    language: "python"
+    version: "1.0.0"
+    enabled: true
+    implementation_status: "implemented"
+    contract_path: "ecosystem/agents/airymax_agents/tester/contract.json"
+    description: "测试用例生成、测试执行、覆盖率分析。"
+
+  - agent_id: "devops_v1"
+    role: "devops"
+    source: "builtin"
+    language: "python"
+    version: "1.0.0"
+    enabled: true
+    implementation_status: "implemented"
+    contract_path: "ecosystem/agents/airymax_agents/devops/contract.json"
+    description: "CI/CD 流水线、部署自动化、基础设施即代码。"
+
+  - agent_id: "security_v1"
+    role: "security"
+    source: "builtin"
+    language: "python"
+    version: "1.0.0"
+    enabled: true
+    implementation_status: "implemented"
+    contract_path: "ecosystem/agents/airymax_agents/security/contract.json"
+    description: "安全审计、漏洞扫描、威胁建模。"
+
+  # ── 已规划但未实现 (enabled: false, implementation_status: planned) ──────
+
+  - agent_id: "data_engineer_v1"
+    role: "data_engineer"
+    source: "builtin"
+    language: "python"
+    version: "0.0.0"
+    enabled: false
+    implementation_status: "planned"
+    contract_path: null  # TBD (planned)
+    description: "数据处理、ETL 管道、数据建模。"
+
+  - agent_id: "coordinator_v1"
+    role: "coordinator"
+    source: "builtin"
+    language: "python"
+    version: "0.0.0"
+    enabled: false
+    implementation_status: "planned"
+    contract_path: null  # TBD (planned)
+    description: "多 Agent 任务协调、资源分配、冲突解决。"
+
+  - agent_id: "reviewer_v1"
+    role: "reviewer"
+    source: "builtin"
+    language: "python"
+    version: "0.0.0"
+    enabled: false
+    implementation_status: "planned"
+    contract_path: null  # TBD (planned)
+    description: "代码评审、最佳实践建议、重构建议。"
+
+  - agent_id: "analyst_v1"
+    role: "analyst"
+    source: "builtin"
+    language: "python"
+    version: "0.0.0"
+    enabled: false
+    implementation_status: "planned"
+    contract_path: null  # TBD (planned)
+    description: "数据分析、趋势检测、可视化报告。"
+
+  - agent_id: "custom_template_v1"
+    role: "custom_template"
+    source: "builtin"
+    language: "python"
+    version: "0.0.0"
+    enabled: false
+    implementation_status: "planned"
+    contract_path: null  # TBD (planned)
+    description: "自定义 Agent 模板，供用户克隆与定制。"
+
+# =============================================================================
+# 字段说明
+# =============================================================================
+# - agent_id: 全局唯一标识 (`<role>_v<major>`)，须与 contract.json 一致
+# - role: 角色分类（snake_case），须为 agent_id 去掉 `_v<n>` 后缀
+# - source: builtin（内置）/ external（外部安装）/ custom（用户自定义）
+# - language: 实现语言（python / rust / c / mixed）
+# - version: 实现版本（SemVer），planned Agent 用 "0.0.0"
+# - enabled: 运行时是否可被 agent_d spawn
+# - implementation_status: implemented / planned / experimental / deprecated
+# - contract_path: 相对仓库根的 contract.json 路径；planned Agent 暂为 null
+# - description: 一句话功能描述（与 contract.json.description 保持一致）

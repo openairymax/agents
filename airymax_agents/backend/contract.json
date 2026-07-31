@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "agent_id": "com.airymax.backend.v1",
+  "agent_id": "backend_v1",
   "agent_name": "Backend Agent",
   "version": "1.0.0",
   "role": "backend",

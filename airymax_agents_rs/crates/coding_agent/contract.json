@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0.0",
+  "agent_id": "coding_v1",
+  "agent_name": "Coding Agent",
+  "version": "0.1.0",
+  "role": "coding",
+  "description": "Airymax Rust Coding Agent 样板（骨架实现）。",
+  "capabilities": [
+    {
+      "name": "code_generate",
+      "description": "生成代码（stub，待接入 LLM）",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "prompt": {"type": "string", "description": "代码生成提示词"}
+        },
+        "required": ["prompt"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "string", "description": "生成的代码"}
+        }
+      },
+      "estimated_tokens": 2000,
+      "avg_duration_ms": 1500,
+      "success_rate": 0.0
+    }
+  ],
+  "models": {
+    "system1": "gpt-4o-mini",
+    "system2": "gpt-4o"
+  },
+  "required_permissions": [
+    "read_project_context",
+    "write_project_artifacts"
+  ],
+  "cost_profile": {
+    "token_per_task_avg": 2000,
+    "api_cost_per_task": 0.005,
+    "maintenance_level": "internal"
+  },
+  "trust_metrics": {
+    "install_count": 0,
+    "rating": 0.0,
+    "verified_provider": false,
+    "last_audit": "2026-07-31"
+  },
+  "extensions": {
+    "language": "rust",
+    "implementation_status": "skeleton"
+  }
+}

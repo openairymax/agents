@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "agent_id": "com.airymax.security.v1",
+  "agent_id": "security_v1",
   "agent_name": "Security Agent",
   "version": "1.0.0",
   "role": "security",
