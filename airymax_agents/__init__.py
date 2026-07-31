@@ -45,6 +45,7 @@ def get_agent(
     role: str,
     llm: Optional[Any] = None,
     contract_overrides: Optional[Dict[str, Any]] = None,
+    syscall_proxy: Optional[Any] = None,
 ) -> AirymaxAgent:
     """按 role 名实例化 Agent。
 
@@ -52,6 +53,8 @@ def get_agent(
         role:              角色 (product_manager/architect/backend/frontend/devops/security/tester)
         llm:               LLM 客户端；None 时用 :func:`make_llm_client`
         contract_overrides: 契约字段覆盖 (例如临时换 model)
+        syscall_proxy:     agentrt 系统调用代理 (SyscallProxy)；
+                           None 时为纯 Python LLM 模式（向后兼容）
 
     返回:
         已就绪的 Agent 实例 (尚未调用 :meth:`initialize`)
@@ -62,7 +65,11 @@ def get_agent(
             f"unknown agent role: {role!r}; "
             f"available: {list(AGENT_REGISTRY)}"
         )
-    return cls(llm=llm, contract_overrides=contract_overrides)
+    return cls(
+        llm=llm,
+        contract_overrides=contract_overrides,
+        syscall_proxy=syscall_proxy,
+    )
 
 
 def list_agents() -> List[str]:

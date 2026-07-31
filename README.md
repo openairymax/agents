@@ -103,7 +103,7 @@ arch_reply = await arch.handle_message(msg)
 每个 Agent 的 `contract.json` 遵循 Airymax 智能体契约规范 v1.0.0：
 
 - `schema_version`: 契约规范版本
-- `agent_id`: 全局唯一标识 (`com.airymax.<role>.v1`)
+- `agent_id`: 全局唯一标识 (`<role>_v1`，如 `product_manager_v1`)
 - `role`: 角色分类
 - `capabilities[]`: 能力列表 (含 input/output JSON Schema)
 - `models`: Thinkdual 双思考模型配置 (`system1` t1-f 快思考 + `system2` t2 主思考)
