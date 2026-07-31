@@ -1,0 +1,101 @@
+{
+  "schema_version": "1.0.0",
+  "agent_id": "com.airymax.architect.v1",
+  "agent_name": "Architect Agent",
+  "version": "1.0.0",
+  "role": "architect",
+  "description": "系统架构设计与评审，负责架构设计、技术选型建议和架构评审。",
+  "capabilities": [
+    {
+      "name": "architecture_design",
+      "description": "基于 PRD 设计系统架构，输出模块划分、组件交互、数据流",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "prd": {"type": "string", "description": "产品需求文档"},
+          "scale": {"type": "string", "enum": ["small", "medium", "large"], "description": "系统规模"},
+          "constraints": {"type": "object", "description": "技术与业务约束"}
+        },
+        "required": ["prd"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "architecture_doc": {"type": "string", "description": "架构设计文档 (Markdown)"},
+          "components": {"type": "array", "items": {"type": "string"}, "description": "模块列表"},
+          "tech_stack": {"type": "object", "description": "技术栈选型"}
+        }
+      },
+      "estimated_tokens": 7000,
+      "avg_duration_ms": 4000,
+      "success_rate": 0.90
+    },
+    {
+      "name": "tech_selection",
+      "description": "针对具体场景给出技术选型对比与建议",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "scenario": {"type": "string", "description": "应用场景"},
+          "candidates": {"type": "array", "items": {"type": "string"}, "description": "候选技术"}
+        },
+        "required": ["scenario"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "recommendation": {"type": "string", "description": "推荐技术"},
+          "rationale": {"type": "string", "description": "选型理由"},
+          "comparison": {"type": "object", "description": "对比矩阵"}
+        }
+      },
+      "estimated_tokens": 4000,
+      "avg_duration_ms": 2500
+    },
+    {
+      "name": "architecture_review",
+      "description": "评审已有架构，给出强弱项与改进建议",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "architecture_doc": {"type": "string", "description": "待评审的架构文档"},
+          "focus": {"type": "string", "description": "评审重点 (如可扩展性/安全性/性能)"}
+        },
+        "required": ["architecture_doc"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "overall_score": {"type": "number", "description": "综合评分 (0-1)"},
+          "strengths": {"type": "array", "items": {"type": "string"}, "description": "强项"},
+          "weaknesses": {"type": "array", "items": {"type": "string"}, "description": "弱项"},
+          "improvements": {"type": "array", "items": {"type": "string"}, "description": "改进建议"}
+        }
+      },
+      "estimated_tokens": 5000,
+      "avg_duration_ms": 3000
+    }
+  ],
+  "models": {
+    "system1": "gpt-4o-mini",
+    "system2": "gpt-4o"
+  },
+  "required_permissions": [
+    "read_project_context",
+    "write_project_artifacts"
+  ],
+  "cost_profile": {
+    "token_per_task_avg": 7000,
+    "api_cost_per_task": 0.025,
+    "maintenance_level": "community"
+  },
+  "trust_metrics": {
+    "install_count": 0,
+    "rating": 0.0,
+    "verified_provider": false,
+    "last_audit": "2026-07-31"
+  },
+  "extensions": {
+    "preferred_llm_provider": "openai"
+  }
+}

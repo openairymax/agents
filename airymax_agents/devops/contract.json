@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0.0",
+  "agent_id": "com.airymax.devops.v1",
+  "agent_name": "DevOps Agent",
+  "version": "1.0.0",
+  "role": "devops",
+  "description": "DevOps 自动化智能体，负责 CI/CD 流水线、部署自动化、基础设施即代码与监控配置。",
+  "capabilities": [
+    {
+      "name": "ci_pipeline",
+      "description": "设计与生成 CI/CD 流水线配置 (GitHub Actions / GitLab CI)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "repo_type": {"type": "string", "description": "仓库类型"},
+          "stages": {"type": "array", "items": {"type": "string"}, "description": "所需阶段 (lint/test/build/deploy)"}
+        },
+        "required": ["repo_type"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "pipeline_config": {"type": "string", "description": "流水线配置文件 (YAML)"},
+          "explanation": {"type": "string", "description": "配置说明"}
+        }
+      },
+      "estimated_tokens": 5000,
+      "avg_duration_ms": 3000,
+      "success_rate": 0.93
+    },
+    {
+      "name": "deployment",
+      "description": "生成部署清单 (Dockerfile / Helm / K8s manifest)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app_spec": {"type": "string", "description": "应用规格"},
+          "target": {"type": "string", "enum": ["docker", "kubernetes", "serverless"], "description": "部署目标"}
+        },
+        "required": ["app_spec", "target"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "manifest": {"type": "string", "description": "部署清单"},
+          "scripts": {"type": "array", "items": {"type": "string"}, "description": "辅助脚本"}
+        }
+      },
+      "estimated_tokens": 6000,
+      "avg_duration_ms": 3500
+    },
+    {
+      "name": "infrastructure_as_code",
+      "description": "生成 Terraform / Pulumi 基础设施代码",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "infra_requirements": {"type": "string", "description": "基础设施需求"},
+          "provider": {"type": "string", "description": "云厂商 (aws/gcp/azure)"}
+        },
+        "required": ["infra_requirements"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "iac_code": {"type": "string", "description": "IaC 代码"},
+          "explanation": {"type": "string", "description": "实现说明"}
+        }
+      },
+      "estimated_tokens": 7000,
+      "avg_duration_ms": 4000
+    }
+  ],
+  "models": {
+    "system1": "gpt-4o-mini",
+    "system2": "gpt-4o"
+  },
+  "required_permissions": [
+    "read_project_context",
+    "write_project_artifacts",
+    "execute:shell",
+    "execute:ci"
+  ],
+  "cost_profile": {
+    "token_per_task_avg": 6000,
+    "api_cost_per_task": 0.022,
+    "maintenance_level": "community"
+  },
+  "trust_metrics": {
+    "install_count": 0,
+    "rating": 0.0,
+    "verified_provider": false,
+    "last_audit": "2026-07-31"
+  },
+  "extensions": {
+    "preferred_llm_provider": "openai"
+  }
+}

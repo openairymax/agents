@@ -1,0 +1,99 @@
+{
+  "schema_version": "1.0.0",
+  "agent_id": "com.airymax.backend.v1",
+  "agent_name": "Backend Agent",
+  "version": "1.0.0",
+  "role": "backend",
+  "description": "后端开发智能体，负责 API 设计、数据库开发、服务端逻辑实现与性能优化。",
+  "capabilities": [
+    {
+      "name": "api_design",
+      "description": "基于架构文档设计 RESTful / GraphQL API，输出 OpenAPI 规范",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "architecture_doc": {"type": "string", "description": "架构文档"},
+          "prd": {"type": "string", "description": "产品需求文档"}
+        },
+        "required": ["architecture_doc"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "openapi_spec": {"type": "string", "description": "OpenAPI 3.0 规范 (YAML)"},
+          "endpoints": {"type": "array", "items": {"type": "string"}, "description": "端点列表"}
+        }
+      },
+      "estimated_tokens": 6000,
+      "avg_duration_ms": 3500,
+      "success_rate": 0.91
+    },
+    {
+      "name": "service_implementation",
+      "description": "实现具体服务端业务逻辑代码",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "spec": {"type": "string", "description": "API 规范或任务描述"},
+          "language": {"type": "string", "description": "实现语言 (如 python/go)"}
+        },
+        "required": ["spec"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "string", "description": "实现代码"},
+          "tests": {"type": "string", "description": "单元测试代码"},
+          "explanation": {"type": "string", "description": "实现说明"}
+        }
+      },
+      "estimated_tokens": 8000,
+      "avg_duration_ms": 5000
+    },
+    {
+      "name": "database_design",
+      "description": "设计数据库 schema、索引策略与迁移脚本",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "entities": {"type": "array", "items": {"type": "string"}, "description": "实体列表"},
+          "db_type": {"type": "string", "description": "数据库类型"}
+        },
+        "required": ["entities"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "schema_ddl": {"type": "string", "description": "DDL 语句"},
+          "indexes": {"type": "array", "items": {"type": "string"}, "description": "索引策略"},
+          "migration_script": {"type": "string", "description": "迁移脚本"}
+        }
+      },
+      "estimated_tokens": 5000,
+      "avg_duration_ms": 3000
+    }
+  ],
+  "models": {
+    "system1": "gpt-4o-mini",
+    "system2": "gpt-4o"
+  },
+  "required_permissions": [
+    "read_project_context",
+    "write_project_artifacts",
+    "filesystem:write:src"
+  ],
+  "cost_profile": {
+    "token_per_task_avg": 7000,
+    "api_cost_per_task": 0.025,
+    "maintenance_level": "community"
+  },
+  "trust_metrics": {
+    "install_count": 0,
+    "rating": 0.0,
+    "verified_provider": false,
+    "last_audit": "2026-07-31"
+  },
+  "extensions": {
+    "preferred_llm_provider": "openai"
+  }
+}
