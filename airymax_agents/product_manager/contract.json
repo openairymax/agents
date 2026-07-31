@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0.0",
+  "agent_id": "com.airymax.product_manager.v1",
+  "agent_name": "Product Manager Agent",
+  "version": "1.0.0",
+  "role": "product_manager",
+  "description": "理解用户需求，撰写产品需求文档 (PRD)，拆解用户故事，规划产品路线图。",
+  "capabilities": [
+    {
+      "name": "requirement_analysis",
+      "description": "将用户模糊需求转化为结构化需求文档",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "goal": {
+            "type": "string",
+            "description": "用户目标描述"
+          },
+          "context": {
+            "type": "object",
+            "description": "业务上下文信息"
+          }
+        },
+        "required": ["goal"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "prd": {
+            "type": "string",
+            "description": "产品需求文档"
+          },
+          "user_stories": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "用户故事列表"
+          }
+        }
+      },
+      "estimated_tokens": 5000,
+      "avg_duration_ms": 3000,
+      "success_rate": 0.92
+    },
+    {
+      "name": "prd_generation",
+      "description": "基于结构化需求生成完整的产品需求文档",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "structured_requirements": {
+            "type": "object",
+            "description": "结构化需求数据"
+          }
+        },
+        "required": ["structured_requirements"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "prd": {
+            "type": "string",
+            "description": "完整的 PRD 文档 (Markdown)"
+          }
+        }
+      },
+      "estimated_tokens": 6000,
+      "avg_duration_ms": 3500
+    }
+  ],
+  "models": {
+    "system1": "gpt-4o-mini",
+    "system2": "gpt-4o"
+  },
+  "required_permissions": [
+    "read_project_context",
+    "write_project_artifacts"
+  ],
+  "cost_profile": {
+    "token_per_task_avg": 6000,
+    "api_cost_per_task": 0.02,
+    "maintenance_level": "community"
+  },
+  "trust_metrics": {
+    "install_count": 0,
+    "rating": 0.0,
+    "verified_provider": false,
+    "last_audit": "2026-07-31"
+  },
+  "extensions": {
+    "preferred_llm_provider": "openai"
+  }
+}

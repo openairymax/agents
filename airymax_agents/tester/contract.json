@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0.0",
+  "agent_id": "com.airymax.tester.v1",
+  "agent_name": "Tester Agent",
+  "version": "1.0.0",
+  "role": "tester",
+  "description": "测试智能体，负责测试用例生成、测试执行规划、覆盖率分析与质量报告。",
+  "capabilities": [
+    {
+      "name": "test_generation",
+      "description": "基于代码或 PRD 生成单元/集成测试用例",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "target": {"type": "string", "description": "待测代码或 PRD"},
+          "test_type": {"type": "string", "enum": ["unit", "integration", "e2e"], "description": "测试类型"}
+        },
+        "required": ["target"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "test_code": {"type": "string", "description": "测试代码"},
+          "test_cases": {"type": "array", "items": {"type": "string"}, "description": "用例描述列表"},
+          "explanation": {"type": "string", "description": "设计说明"}
+        }
+      },
+      "estimated_tokens": 6000,
+      "avg_duration_ms": 3500,
+      "success_rate": 0.91
+    },
+    {
+      "name": "test_execution_plan",
+      "description": "生成测试执行计划与策略",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "scope": {"type": "string", "description": "测试范围"},
+          "environments": {"type": "array", "items": {"type": "string"}, "description": "目标环境"}
+        },
+        "required": ["scope"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "plan": {"type": "string", "description": "执行计划 (Markdown)"},
+          "priorities": {"type": "array", "items": {"type": "string"}, "description": "优先级用例"}
+        }
+      },
+      "estimated_tokens": 4500,
+      "avg_duration_ms": 2800
+    },
+    {
+      "name": "coverage_analysis",
+      "description": "分析测试覆盖率并提出改进建议",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "coverage_report": {"type": "string", "description": "覆盖率报告"},
+          "source_code": {"type": "string", "description": "源代码"}
+        },
+        "required": ["coverage_report"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "gaps": {"type": "array", "items": {"type": "string"}, "description": "覆盖盲区"},
+          "recommendations": {"type": "array", "items": {"type": "string"}, "description": "改进建议"}
+        }
+      },
+      "estimated_tokens": 4000,
+      "avg_duration_ms": 2500
+    }
+  ],
+  "models": {
+    "system1": "gpt-4o-mini",
+    "system2": "gpt-4o"
+  },
+  "required_permissions": [
+    "read_project_context",
+    "write_project_artifacts",
+    "execute:tests"
+  ],
+  "cost_profile": {
+    "token_per_task_avg": 5000,
+    "api_cost_per_task": 0.018,
+    "maintenance_level": "community"
+  },
+  "trust_metrics": {
+    "install_count": 0,
+    "rating": 0.0,
+    "verified_provider": false,
+    "last_audit": "2026-07-31"
+  },
+  "extensions": {
+    "preferred_llm_provider": "openai"
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0.0",
+  "agent_id": "com.airymax.security.v1",
+  "agent_name": "Security Agent",
+  "version": "1.0.0",
+  "role": "security",
+  "description": "安全审计智能体，负责漏洞扫描、威胁建模、代码安全审查与合规检查。",
+  "capabilities": [
+    {
+      "name": "security_audit",
+      "description": "对代码或架构进行安全审计，输出风险报告",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "target": {"type": "string", "description": "待审计的代码/架构文档"},
+          "scope": {"type": "string", "description": "审计范围"}
+        },
+        "required": ["target"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "overall_score": {"type": "number", "description": "安全评分 (0-1)"},
+          "findings": {"type": "array", "description": "发现的安全问题"},
+          "recommendations": {"type": "array", "items": {"type": "string"}, "description": "修复建议"}
+        }
+      },
+      "estimated_tokens": 6000,
+      "avg_duration_ms": 4000,
+      "success_rate": 0.89
+    },
+    {
+      "name": "vulnerability_scan",
+      "description": "扫描代码依赖与配置中的已知漏洞 (CVE)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "manifest": {"type": "string", "description": "依赖清单 (package.json/requirements.txt 等)"},
+          "config": {"type": "string", "description": "配置文件"}
+        },
+        "required": ["manifest"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "vulnerabilities": {"type": "array", "description": "漏洞列表"},
+          "remediation": {"type": "string", "description": "修复建议"}
+        }
+      },
+      "estimated_tokens": 4000,
+      "avg_duration_ms": 2500
+    },
+    {
+      "name": "threat_modeling",
+      "description": "基于架构图进行威胁建模 (STRIDE)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "architecture_doc": {"type": "string", "description": "架构文档"},
+          "data_sensitivity": {"type": "string", "description": "数据敏感等级"}
+        },
+        "required": ["architecture_doc"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "threats": {"type": "array", "description": "威胁列表 (STRIDE 分类)"},
+          "mitigations": {"type": "array", "items": {"type": "string"}, "description": "缓解措施"}
+        }
+      },
+      "estimated_tokens": 5500,
+      "avg_duration_ms": 3500
+    }
+  ],
+  "models": {
+    "system1": "gpt-4o-mini",
+    "system2": "gpt-4o"
+  },
+  "required_permissions": [
+    "read_project_context",
+    "execute:scan"
+  ],
+  "cost_profile": {
+    "token_per_task_avg": 5500,
+    "api_cost_per_task": 0.020,
+    "maintenance_level": "community"
+  },
+  "trust_metrics": {
+    "install_count": 0,
+    "rating": 0.0,
+    "verified_provider": false,
+    "last_audit": "2026-07-31"
+  },
+  "extensions": {
+    "preferred_llm_provider": "openai"
+  }
+}

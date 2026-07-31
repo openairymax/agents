@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0.0",
+  "agent_id": "com.airymax.frontend.v1",
+  "agent_name": "Frontend Agent",
+  "version": "1.0.0",
+  "role": "frontend",
+  "description": "前端开发智能体，负责 UI 实现、组件设计、状态管理与交互逻辑。",
+  "capabilities": [
+    {
+      "name": "ui_implementation",
+      "description": "基于设计稿或 PRD 实现 UI 页面与交互",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "design_spec": {"type": "string", "description": "设计稿描述或 PRD"},
+          "framework": {"type": "string", "description": "前端框架 (react/vue/svelte)"}
+        },
+        "required": ["design_spec"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "string", "description": "实现代码"},
+          "explanation": {"type": "string", "description": "实现说明"}
+        }
+      },
+      "estimated_tokens": 7000,
+      "avg_duration_ms": 4000,
+      "success_rate": 0.90
+    },
+    {
+      "name": "component_design",
+      "description": "设计可复用组件结构与 props 契约",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "requirements": {"type": "string", "description": "组件需求"}
+        },
+        "required": ["requirements"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "component_tree": {"type": "string", "description": "组件树描述"},
+          "props_contracts": {"type": "string", "description": "组件 props 契约 (TS 接口)"}
+        }
+      },
+      "estimated_tokens": 5000,
+      "avg_duration_ms": 3000
+    },
+    {
+      "name": "state_management",
+      "description": "设计前端状态管理方案 (Redux/Zustand/Pinia 等)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "app_description": {"type": "string", "description": "应用描述"},
+          "complexity": {"type": "string", "enum": ["low", "medium", "high"]}
+        },
+        "required": ["app_description"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "recommendation": {"type": "string", "description": "推荐方案"},
+          "store_structure": {"type": "string", "description": "状态结构"},
+          "rationale": {"type": "string", "description": "选型理由"}
+        }
+      },
+      "estimated_tokens": 4500,
+      "avg_duration_ms": 2800
+    }
+  ],
+  "models": {
+    "system1": "gpt-4o-mini",
+    "system2": "gpt-4o"
+  },
+  "required_permissions": [
+    "read_project_context",
+    "write_project_artifacts",
+    "filesystem:write:src"
+  ],
+  "cost_profile": {
+    "token_per_task_avg": 6500,
+    "api_cost_per_task": 0.022,
+    "maintenance_level": "community"
+  },
+  "trust_metrics": {
+    "install_count": 0,
+    "rating": 0.0,
+    "verified_provider": false,
+    "last_audit": "2026-07-31"
+  },
+  "extensions": {
+    "preferred_llm_provider": "openai"
+  }
+}
