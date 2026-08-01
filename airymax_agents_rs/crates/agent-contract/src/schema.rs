@@ -101,34 +101,35 @@ impl Contract {
     }
 }
 
-/// 简化版正则校验：`^[a-z][a-z0-9_]*_v\d+$`。
+/// 校验 agent_id 格式：`^[a-z][a-z0-9_]*_v\d+$`。
+/// 名称部分可含下划线，仅最后一个 `_v` 后跟数字时视为版本后缀。
 fn is_valid_agent_id(s: &str) -> bool {
     let bytes = s.as_bytes();
     if bytes.is_empty() || !bytes[0].is_ascii_lowercase() {
         return false;
     }
-    let mut i = 1;
-    while i < bytes.len() {
-        let c = bytes[i];
-        if c == b'_' {
-            // 检查后跟 "v" + 数字
-            if i + 2 >= bytes.len() || bytes[i + 1] != b'v' || !bytes[i + 2].is_ascii_digit() {
-                return false;
-            }
-            // 剩余必须全是数字
-            for &b in &bytes[i + 3..] {
-                if !b.is_ascii_digit() {
-                    return false;
-                }
-            }
-            return true;
+    // 从右向左找最后一个 "_v"
+    let suffix_pos = s.rfind("_v");
+    let (name_start, ver_start) = match suffix_pos {
+        Some(pos) if pos + 2 < bytes.len() && bytes[pos + 2].is_ascii_digit() => {
+            // "_v" 后至少一个数字
+            (pos, pos + 2)
         }
-        if !(c.is_ascii_lowercase() || c.is_ascii_digit()) {
+        _ => return false, // 无有效 "_v\d+" 后缀
+    };
+    // 名称部分：`[a-z][a-z0-9_]*`
+    for &b in &bytes[..name_start] {
+        if !(b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_') {
             return false;
         }
-        i += 1;
     }
-    false
+    // 版本部分：`\d+`
+    for &b in &bytes[ver_start..] {
+        if !b.is_ascii_digit() {
+            return false;
+        }
+    }
+    true
 }
 
 /// 单个能力声明。

@@ -2,8 +2,9 @@
 
 Airymax Rust Agent 执行体（Cargo workspace）。
 
-仿 codex-rs 多 crate 划分；与 Python `airymax_agents/` 共享同一
-`contract.json` schema 与 agent_id 规则（见
+采用 Cargo workspace 多 crate 划分，按职责边界解耦（核心抽象 /
+FFI 绑定 / 契约解析 / 执行体样板）；与 Python `airymax_agents/`
+共享同一 `contract.json` schema 与 agent_id 规则（见
 `docs-closed/agentrt/01-designs/airymax-agent-standard.md` §9 跨语言映射）。
 
 ## Crates

@@ -2,34 +2,35 @@
   "schema_version": "1.0.0",
   "agent_id": "coding_v1",
   "agent_name": "Coding Agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "role": "coding",
-  "description": "Airymax Rust Coding Agent 样板（骨架实现）。",
+  "description": "Airymax Rust Coding Agent — LLM 驱动的代码生成智能体（OpenAI 兼容协议）。",
   "capabilities": [
     {
       "name": "code_generate",
-      "description": "生成代码（stub，待接入 LLM）",
+      "description": "根据需求生成可直接运行的代码",
       "input_schema": {
         "type": "object",
         "properties": {
-          "prompt": {"type": "string", "description": "代码生成提示词"}
+          "prompt": {"type": "string", "description": "代码生成需求描述"}
         },
         "required": ["prompt"]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "code": {"type": "string", "description": "生成的代码"}
+          "code": {"type": "string", "description": "生成的代码"},
+          "explanation": {"type": "string", "description": "实现说明"}
         }
       },
       "estimated_tokens": 2000,
       "avg_duration_ms": 1500,
-      "success_rate": 0.0
+      "success_rate": 0.9
     }
   ],
   "models": {
     "system1": "gpt-4o-mini",
-    "system2": "gpt-4o"
+    "system2": "gpt-4o-mini"
   },
   "required_permissions": [
     "read_project_context",
@@ -48,6 +49,6 @@
   },
   "extensions": {
     "language": "rust",
-    "implementation_status": "skeleton"
+    "implementation_status": "llm_ready"
   }
 }

@@ -10,6 +10,15 @@ license.workspace = true
 authors.workspace = true
 description = "Airymax CodingAgent sample (Rust skeleton)"
 
+# 既是 lib（供其他 crate 复用 CodingAgent）也是 bin（agent_d 子进程入口）。
+[lib]
+name = "coding_agent"
+path = "src/lib.rs"
+
+[[bin]]
+name = "coding_agent"
+path = "src/main.rs"
+
 [dependencies]
 agent-core.workspace = true
 agent-contract.workspace = true

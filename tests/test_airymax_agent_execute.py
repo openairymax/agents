@@ -238,11 +238,11 @@ def test_get_agent_unknown_role_raises_keyerror():
         get_agent("unknown_role")
 
 
-def test_agent_registry_has_seven_roles():
-    """AGENT_REGISTRY 含 7 个 role 条目。"""
-    assert len(AGENT_REGISTRY) == 7
+def test_agent_registry_has_eight_roles():
+    """AGENT_REGISTRY 含 8 个 role 条目。"""
+    assert len(AGENT_REGISTRY) == 8
     expected_roles = {
         "product_manager", "architect", "backend",
-        "frontend", "devops", "security", "tester",
+        "frontend", "devops", "security", "tester", "coding",
     }
     assert set(AGENT_REGISTRY.keys()) == expected_roles

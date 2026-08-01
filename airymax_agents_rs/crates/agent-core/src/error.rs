@@ -25,6 +25,9 @@ pub enum AgentError {
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 
+    #[error("LLM call failure: {0}")]
+    Llm(String),
+
     #[error("agent terminated externally")]
     Terminated,
 }

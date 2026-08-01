@@ -6,7 +6,6 @@
 use crate::context::AgentContext;
 use crate::error::Result;
 use crate::status::AgentStatus;
-use async_trait::AsyncTrait;
 use serde::{Deserialize, Serialize};
 
 /// Agent 身份标识。
@@ -73,7 +72,7 @@ impl TaskResult {
 /// Agent 核心 trait，对齐 `airymax-agent-standard.md` §3.2 Rust 定义。
 ///
 /// 所有 Rust 实现 Agent 须实现此 trait。
-#[async_trait]
+#[async_trait::async_trait]
 pub trait Agent: Send + Sync {
     /// 返回 Agent 身份（agent_id / role / version）。
     fn identity(&self) -> &AgentIdentity;

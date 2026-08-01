@@ -1,0 +1,23 @@
+# ===========================================================================
+# airymax-agents — 构建产物与本地缓存忽略规则
+# ---------------------------------------------------------------------------
+# Python 字节码与缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 测试与静态分析缓存
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+.coverage
+htmlcov/
+
+# 虚拟环境
+.venv/
+venv/
+
+# Rust 构建产物（cargo workspace）
+target/
+**/*.rs.bk

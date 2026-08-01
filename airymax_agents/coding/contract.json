@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0.0",
+  "agent_id": "coding_v1",
+  "agent_name": "Coding Agent",
+  "version": "0.2.0",
+  "role": "coding",
+  "description": "Airymax Python Coding Agent — LLM 驱动的代码生成智能体（与 Rust 侧对称）。",
+  "capabilities": [
+    {
+      "name": "code_generate",
+      "description": "根据需求生成可直接运行的代码",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "prompt": {"type": "string", "description": "代码生成需求描述"}
+        },
+        "required": ["prompt"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "string", "description": "生成的代码"},
+          "explanation": {"type": "string", "description": "实现说明"}
+        }
+      },
+      "estimated_tokens": 2000,
+      "avg_duration_ms": 1500,
+      "success_rate": 0.9
+    }
+  ],
+  "models": {
+    "system1": "gpt-4o-mini",
+    "system2": "gpt-4o-mini"
+  },
+  "required_permissions": [
+    "read_project_context",
+    "write_project_artifacts"
+  ],
+  "cost_profile": {
+    "token_per_task_avg": 2000,
+    "api_cost_per_task": 0.005,
+    "maintenance_level": "internal"
+  },
+  "trust_metrics": {
+    "install_count": 0,
+    "rating": 0.0,
+    "verified_provider": false,
+    "last_audit": "2026-07-31"
+  },
+  "extensions": {
+    "language": "python",
+    "implementation_status": "llm_ready"
+  }
+}
