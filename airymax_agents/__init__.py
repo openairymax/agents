@@ -28,6 +28,7 @@ from .frontend.agent import FrontendAgent
 from .devops.agent import DevOpsAgent
 from .security.agent import SecurityAgent
 from .tester.agent import TesterAgent
+from .coding.agent import CodingAgent
 
 #: role → Agent 类
 AGENT_REGISTRY: Dict[str, type] = {
@@ -38,6 +39,7 @@ AGENT_REGISTRY: Dict[str, type] = {
     "devops": DevOpsAgent,
     "security": SecurityAgent,
     "tester": TesterAgent,
+    "coding": CodingAgent,
 }
 
 
@@ -89,4 +91,5 @@ __all__ = [
     "DevOpsAgent",
     "SecurityAgent",
     "TesterAgent",
+    "CodingAgent",
 ]

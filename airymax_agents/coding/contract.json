@@ -4,7 +4,7 @@
   "agent_name": "Coding Agent",
   "version": "0.2.0",
   "role": "coding",
-  "description": "Airymax Rust Coding Agent — LLM 驱动的代码生成智能体（OpenAI 兼容协议）。",
+  "description": "Airymax Python Coding Agent — LLM 驱动的代码生成智能体（与 Rust 侧对称）。",
   "capabilities": [
     {
       "name": "code_generate",
@@ -48,7 +48,7 @@
     "last_audit": "2026-07-31"
   },
   "extensions": {
-    "language": "rust",
+    "language": "python",
     "implementation_status": "llm_ready"
   }
 }

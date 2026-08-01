@@ -63,9 +63,10 @@ mod tests {
 
     #[test]
     fn serde_roundtrip() {
+        // serde 默认以字符串形式序列化枚举变体名称
         let s = serde_json::to_string(&AgentStatus::Running).unwrap();
-        assert_eq!(s, "1");
-        let v: AgentStatus = serde_json::from_str("3").unwrap();
+        assert_eq!(s, "\"Running\"");
+        let v: AgentStatus = serde_json::from_str("\"Terminated\"").unwrap();
         assert_eq!(v, AgentStatus::Terminated);
     }
 }

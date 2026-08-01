@@ -8,9 +8,11 @@
 pub mod agent;
 pub mod context;
 pub mod error;
+pub mod llm;
 pub mod status;
 
 pub use agent::{Agent, AgentIdentity, AgentInput, TaskResult};
 pub use context::AgentContext;
 pub use error::{AgentError, Result};
+pub use llm::{ChatMessage, LlmClient, LlmResponse, MockLlmClient, OpenAiLlmClient, make_llm_client};
 pub use status::AgentStatus;
