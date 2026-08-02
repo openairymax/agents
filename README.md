@@ -1,8 +1,9 @@
 # Airymax Agents
 
-Airymax 内置 Agent 执行体集合 — 7 个开箱即用、遵循
+Airymax 内置 Agent 执行体集合 — 8 个开箱即用、遵循
 [`01-agent-contract.md`](https://gitcode.com/openairymax/docs/blob/main/AirymaxRT/20-modules/10-contracts/01-agent-contract.md)
-的智能体，覆盖软件交付全链路。
+的智能体，覆盖软件交付全链路。Python 实现位于 `airymax_agents/`，
+Rust 实现位于 `airymax_agents_rs/`（当前为 `coding` 角色）。
 
 ## 设计原则
 
@@ -22,13 +23,14 @@ Airymax 内置 Agent 执行体集合 — 7 个开箱即用、遵循
 | `devops` | `DevOpsAgent` | CI/CD 流水线、部署自动化、基础设施即代码 |
 | `security` | `SecurityAgent` | 安全审计、漏洞扫描、威胁建模 |
 | `tester` | `TesterAgent` | 测试用例生成、测试执行、覆盖率分析 |
+| `coding` | `CodingAgent` | 代码生成、解释、重构（Python + Rust 双实现，均接入 LLM） |
 
 ## 目录结构
 
 ```
 agents/
 ├── README.md
-├── airymax_agents/
+├── airymax_agents/                # Python 实现（8 角色）
 │   ├── __init__.py            # 统一导出 + get_agent() 工厂
 │   ├── base.py                # AirymaxAgent 基类 (自动加载契约+提示词)
 │   ├── product_manager/
@@ -41,7 +43,20 @@ agents/
 │   ├── frontend/...
 │   ├── devops/...
 │   ├── security/...
-│   └── tester/...
+│   ├── tester/...
+│   └── coding/                   # CodingAgent (Python)
+├── airymax_agents_rs/             # Rust 实现（cargo workspace）
+│   └── crates/
+│       ├── agent-core/            # 核心 trait / LLM 客户端 / 错误类型
+│       ├── agent-contract/        # contract.json 解析与校验
+│       ├── agent-ffi/             # syscall FFI 绑定
+│       └── coding_agent/          # Rust CodingAgent (LLM 驱动)
+├── registry/
+│   └── agents.yaml              # 执行体注册表（运行时单一可信源）
+├── shared/
+│   └── contracts/
+│       └── agent.schema.json    # 契约 JSON Schema
+├── tests/                        # pytest 套件（含基准测试）
 └── examples/
     └── run_pm.py              # 端到端示例
 ```
@@ -86,7 +101,7 @@ from airymax_agents import get_agent
 from openlab.core.agent import AgentContext, Message
 
 pm = get_agent("product_manager")
-arch = = get_agent("architect")
+arch = get_agent("architect")
 await pm.initialize()
 await arch.initialize()
 

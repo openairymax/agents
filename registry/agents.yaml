@@ -17,15 +17,15 @@
 # =============================================================================
 
 schema_version: "1.0.0"
-last_updated: "2026-07-31"
+last_updated: "2026-08-01"
 
 # 统计（供 observability 与 CI 校验）
 _summary:
-  total_agents: 12
-  enabled_agents: 7
+  total_agents: 14
+  enabled_agents: 9
   planned_agents: 5
-  python_implemented: 7
-  rust_implemented: 0
+  python_implemented: 8
+  rust_implemented: 1
 
 # =============================================================================
 # 执行体清单
@@ -103,6 +103,28 @@ agents:
     implementation_status: "implemented"
     contract_path: "ecosystem/agents/airymax_agents/security/contract.json"
     description: "安全审计、漏洞扫描、威胁建模。"
+
+  # ── coding：双语言实现（Python + Rust），agent_id 区分语言 ─────────────
+
+  - agent_id: "coding_v1"
+    role: "coding"
+    source: "builtin"
+    language: "python"
+    version: "0.2.0"
+    enabled: true
+    implementation_status: "implemented"
+    contract_path: "ecosystem/agents/airymax_agents/coding/contract.json"
+    description: "代码生成、解释、重构 (Python 实现)。"
+
+  - agent_id: "coding_rs_v1"
+    role: "coding"
+    source: "builtin"
+    language: "rust"
+    version: "0.2.0"
+    enabled: true
+    implementation_status: "implemented"
+    contract_path: "ecosystem/agents/airymax_agents_rs/crates/coding_agent/contract.json"
+    description: "代码生成、解释、重构 (Rust 实现，LLM 驱动)。"
 
   # ── 已规划但未实现 (enabled: false, implementation_status: planned) ──────
 
