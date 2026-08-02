@@ -180,7 +180,7 @@ mod tests {
         assert_eq!(agent.status(), AgentStatus::Created);
         agent.initialize().await.expect("initialize");
         assert_eq!(agent.status(), AgentStatus::Running);
-        assert_eq!(agent.identity().agent_id, "coding_v1");
+        assert_eq!(agent.identity().agent_id, "coding_rs_v1");
         assert!(agent.contract().is_some());
 
         let ctx = AgentContext::new("coding-001", "coding");
