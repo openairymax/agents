@@ -76,6 +76,17 @@ def _make_response(output: str = "", success: bool = True, error: str = "") -> s
     return json.dumps(resp, ensure_ascii=False)
 
 
+def _make_ready(role: str) -> str:
+    """构建 ready 信号（spawn 存活校验协议，P0-2）。
+
+    agent_d 的 service.c::agent_service_spawn 在 fork 后读取子进程
+    stdout 的第一行，校验 ``{"ready":true}`` 确认子进程存活，失败则
+    判定 spawn 失败并回收，不再静默回退 stub。该行在 spawn 阶段被
+    消费，不会与 invoke 的 ``{"success":...}`` 响应混淆。
+    """
+    return json.dumps({"ready": True, "role": role}, ensure_ascii=False)
+
+
 async def _execute_once(agent: Any, agent_id: str, user_input: str) -> str:
     """执行一次 Agent 调用，返回 JSON 响应字符串。"""
     from openlab.core.agent import AgentContext
@@ -136,6 +147,9 @@ def main() -> int:
         return 1
 
     logger.info("runner ready (role=%s, agent_id=%s)", role, agent.agent_id)
+
+    # P0-2：spawn 存活校验协议 — 初始化完成后向 agent_d 发送 ready 信号
+    print(_make_ready(role), flush=True)
 
     # 4. 主循环：逐行读取请求 → 执行 → 写响应
     for raw_line in sys.stdin:

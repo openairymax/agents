@@ -18,7 +18,10 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from .base import AirymaxAgent
 from .product_manager.agent import ProductManagerAgent
@@ -42,6 +45,32 @@ AGENT_REGISTRY: Dict[str, type] = {
     "coding": CodingAgent,
 }
 
+#: 规划器抽象角色 → 执行体角色 归一化映射
+#:
+#: 认知规划器（reactive 规则表 / GRAD s2 LLM 计划 / 降级路径）产出的是
+#: 抽象角色（creator/verifier/analyst...），而 agent 运行时只注册具体
+#: 工程角色。此处作为「策略 → 机制」的绑定层，将抽象角色归一化到
+#: 最近的执行体；LLM 计划可能产出任意角色串，因此保留兜底。
+ROLE_ALIASES: Dict[str, str] = {
+    "creator": "coding",
+    "generator": "coding",
+    "writer": "coding",
+    "translator": "coding",
+    "explainer": "coding",
+    "processor": "coding",
+    "formatter": "coding",
+    "reactive-agent": "coding",
+    "verifier": "tester",
+    "validator": "tester",
+    "executor": "devops",
+    "retriever": "architect",
+    "analyst": "architect",
+    "summarizer": "product_manager",
+}
+
+#: 兜底执行体：未知角色归一化至此，保证计划总能被驱动、不因角色失配中断
+ROLE_FALLBACK = "coding"
+
 
 def get_agent(
     role: str,
@@ -63,10 +92,10 @@ def get_agent(
     """
     cls = AGENT_REGISTRY.get(role)
     if cls is None:
-        raise KeyError(
-            f"unknown agent role: {role!r}; "
-            f"available: {list(AGENT_REGISTRY)}"
-        )
+        # 策略→机制 绑定层：抽象角色归一化到具体执行体
+        resolved = ROLE_ALIASES.get(role, ROLE_FALLBACK)
+        logger.warning("unknown agent role %r, normalized to %r", role, resolved)
+        cls = AGENT_REGISTRY[resolved]
     return cls(
         llm=llm,
         contract_overrides=contract_overrides,
