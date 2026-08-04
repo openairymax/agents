@@ -28,6 +28,7 @@ import pytest
 from airymax_agents import (
     AGENT_REGISTRY,
     ArchitectAgent,
+    CodingAgent,
     ProductManagerAgent,
     get_agent,
 )
@@ -232,10 +233,11 @@ def test_get_agent_returns_correct_class(mock_llm):
     assert agent.agent_id == "architect_v1"
 
 
-def test_get_agent_unknown_role_raises_keyerror():
-    """get_agent 传入未知 role 时抛 KeyError。"""
-    with pytest.raises(KeyError):
-        get_agent("unknown_role")
+def test_get_agent_unknown_role_normalizes_to_coding(mock_llm):
+    """get_agent 传入未知 role 时归一化到 coding 并返回 AirymaxAgent 实例。"""
+    agent = get_agent("unknown_role", llm=mock_llm)
+    assert isinstance(agent, CodingAgent)
+    assert isinstance(agent, AirymaxAgent)
 
 
 def test_agent_registry_has_eight_roles():

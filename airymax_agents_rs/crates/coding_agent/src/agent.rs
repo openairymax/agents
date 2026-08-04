@@ -41,7 +41,7 @@ impl CodingAgent {
             // 占位值，initialize 后由契约覆盖
             agent_id: "coding_v1".to_string(),
             role: "coding".to_string(),
-            version: "0.1.0".to_string(),
+            version: "0.1.1".to_string(),
         };
         Self {
             identity,
