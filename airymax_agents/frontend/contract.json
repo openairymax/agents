@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "agent_id": "frontend_v1",
   "agent_name": "Frontend Agent",
-  "version": "1.0.0",
+  "version": "0.1.1",
   "role": "frontend",
   "description": "前端开发智能体，负责 UI 实现、组件设计、状态管理与交互逻辑。",
   "capabilities": [
@@ -73,7 +73,7 @@
   ],
   "models": {
     "system1": "gpt-4o-mini",
-    "system2": "gpt-4o"
+    "system2": "deepseek-v4-flash"
   },
   "required_permissions": [
     "read_project_context",

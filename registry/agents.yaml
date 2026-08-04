@@ -38,7 +38,7 @@ agents:
     role: "product_manager"
     source: "builtin"
     language: "python"
-    version: "1.0.0"
+    version: "0.1.1"
     enabled: true
     implementation_status: "implemented"
     contract_path: "ecosystem/agents/airymax_agents/product_manager/contract.json"
@@ -48,7 +48,7 @@ agents:
     role: "architect"
     source: "builtin"
     language: "python"
-    version: "1.0.0"
+    version: "0.1.1"
     enabled: true
     implementation_status: "implemented"
     contract_path: "ecosystem/agents/airymax_agents/architect/contract.json"
@@ -58,7 +58,7 @@ agents:
     role: "frontend"
     source: "builtin"
     language: "python"
-    version: "1.0.0"
+    version: "0.1.1"
     enabled: true
     implementation_status: "implemented"
     contract_path: "ecosystem/agents/airymax_agents/frontend/contract.json"
@@ -68,7 +68,7 @@ agents:
     role: "backend"
     source: "builtin"
     language: "python"
-    version: "1.0.0"
+    version: "0.1.1"
     enabled: true
     implementation_status: "implemented"
     contract_path: "ecosystem/agents/airymax_agents/backend/contract.json"
@@ -78,7 +78,7 @@ agents:
     role: "tester"
     source: "builtin"
     language: "python"
-    version: "1.0.0"
+    version: "0.1.1"
     enabled: true
     implementation_status: "implemented"
     contract_path: "ecosystem/agents/airymax_agents/tester/contract.json"
@@ -88,7 +88,7 @@ agents:
     role: "devops"
     source: "builtin"
     language: "python"
-    version: "1.0.0"
+    version: "0.1.1"
     enabled: true
     implementation_status: "implemented"
     contract_path: "ecosystem/agents/airymax_agents/devops/contract.json"
@@ -98,7 +98,7 @@ agents:
     role: "security"
     source: "builtin"
     language: "python"
-    version: "1.0.0"
+    version: "0.1.1"
     enabled: true
     implementation_status: "implemented"
     contract_path: "ecosystem/agents/airymax_agents/security/contract.json"
@@ -110,7 +110,7 @@ agents:
     role: "coding"
     source: "builtin"
     language: "python"
-    version: "0.2.0"
+    version: "0.1.1"
     enabled: true
     implementation_status: "implemented"
     contract_path: "ecosystem/agents/airymax_agents/coding/contract.json"
@@ -120,7 +120,7 @@ agents:
     role: "coding"
     source: "builtin"
     language: "rust"
-    version: "0.2.0"
+    version: "0.1.1"
     enabled: true
     implementation_status: "implemented"
     contract_path: "ecosystem/agents/airymax_agents_rs/crates/coding_agent/contract.json"

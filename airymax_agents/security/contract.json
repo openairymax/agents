@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "agent_id": "security_v1",
   "agent_name": "Security Agent",
-  "version": "1.0.0",
+  "version": "0.1.1",
   "role": "security",
   "description": "安全审计智能体，负责漏洞扫描、威胁建模、代码安全审查与合规检查。",
   "capabilities": [
@@ -74,7 +74,7 @@
   ],
   "models": {
     "system1": "gpt-4o-mini",
-    "system2": "gpt-4o"
+    "system2": "deepseek-v4-flash"
   },
   "required_permissions": [
     "read_project_context",

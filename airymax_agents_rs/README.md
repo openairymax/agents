@@ -27,7 +27,7 @@ cargo test  --workspace
 
 ## 状态
 
-v0.2.0（LLM 已接入）。`coding_agent` 已具备真实 LLM 调用能力：
+v0.1.1（LLM 已接入）。`coding_agent` 已具备真实 LLM 调用能力：
 
 - **OpenAI 兼容协议**：`LlmClient` 经 `$OPENAI_API_KEY`（可选 `$OPENAI_BASE_URL`）调用真实 LLM；
 - **Mock 降级**：无 API Key 时 `MockLlmClient` 提供确定性响应，保证 CI/本地可运行；
