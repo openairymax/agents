@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "agent_id": "devops_v1",
   "agent_name": "DevOps Agent",
-  "version": "1.0.0",
+  "version": "0.1.1",
   "role": "devops",
   "description": "DevOps 自动化智能体，负责 CI/CD 流水线、部署自动化、基础设施即代码与监控配置。",
   "capabilities": [
@@ -73,7 +73,7 @@
   ],
   "models": {
     "system1": "gpt-4o-mini",
-    "system2": "gpt-4o"
+    "system2": "deepseek-v4-flash"
   },
   "required_permissions": [
     "read_project_context",

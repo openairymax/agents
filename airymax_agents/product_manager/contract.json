@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "agent_id": "product_manager_v1",
   "agent_name": "Product Manager Agent",
-  "version": "1.0.0",
+  "version": "0.1.1",
   "role": "product_manager",
   "description": "理解用户需求，撰写产品需求文档 (PRD)，拆解用户故事，规划产品路线图。",
   "capabilities": [
@@ -69,7 +69,7 @@
   ],
   "models": {
     "system1": "gpt-4o-mini",
-    "system2": "gpt-4o"
+    "system2": "deepseek-v4-flash"
   },
   "required_permissions": [
     "read_project_context",

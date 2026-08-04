@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "agent_id": "coding_v1",
   "agent_name": "Coding Agent",
-  "version": "0.2.0",
+  "version": "0.1.1",
   "role": "coding",
   "description": "Airymax Python Coding Agent — LLM 驱动的代码生成智能体（与 Rust 侧对称）。",
   "capabilities": [
