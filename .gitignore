@@ -1,32 +1,76 @@
-# ===========================================================================
-# airymax-agents — 构建产物与本地缓存忽略规则
-# ---------------------------------------------------------------------------
-# Python 字节码与缓存
+# =============================================================================
+# airymax-agents — .gitignore
+# 策略：非必要不追踪。仅忽略本地构建产物与运行时数据，
+#       源码与必要配置保持可追踪，避免误推远程仓库
+# =============================================================================
+
+# ---------- Python 字节码与缓存 ----------
 __pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
+*.egg
+dist/
+build/
 
-# 测试与静态分析缓存
+# ---------- 测试与静态分析缓存 ----------
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
 .hypothesis/
 .coverage
+.coverage.*
 htmlcov/
+coverage.xml
+test-results/
+test_output/
 
-# 虚拟环境
+# ---------- 虚拟环境 ----------
 .venv/
 venv/
+env/
+ENV/
+.python-version
 
-# Rust 构建产物（cargo workspace）
+# ---------- Rust 构建产物（airymax_agents_rs 工作区） ----------
 target/
+**/target/
 **/*.rs.bk
+# 注：airymax_agents_rs 工作区含二进制 crate，Cargo.lock 需入库，
+# 由 airymax_agents_rs/.gitignore 管理，不在本层忽略
 
-# ===== 通用兜底（2026-08 统一更新） =====
-# 误放的大型运行时目录（JDK 等）与运行时产物
-oracleJdk-*/
-jdk-*/
+# ---------- IDE 与编辑器配置 ----------
+.vscode/
+.idea/
+.vs/
+.trae/
+*.code-workspace
+.cache/
+
+# ---------- 环境与密钥（禁止入库） ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets.json
+
+# ---------- 运行时数据 ----------
 *.log
 *.sock
-/run/
-/logs/
+*.db
+*.tmp
+*.bak
+tmp/
+temp/
+
+# ---------- 操作系统文件 ----------
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ---------- 编辑器临时文件 ----------
+*.swp
+*.swo
+*~
