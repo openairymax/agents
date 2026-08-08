@@ -244,8 +244,10 @@ class AirymaxAgent(LLMAgent):
         """
 
         def _dispatch(params: Dict[str, Any]) -> Dict[str, Any]:
+            # P0 交互式审批：透传真实 agent_id，tool_d 按该主体做 ACL 判定，
+            # 未授权工具进入 pending（AIRY_TOOL_APPROVAL_MODE=interactive）。
             return self._sys.tool_execute(
-                tool_id, params if isinstance(params, dict) else {}
+                tool_id, params if isinstance(params, dict) else {}, self.agent_id
             )
 
         return _dispatch

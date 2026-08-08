@@ -148,6 +148,15 @@ def main() -> int:
 
     logger.info("runner ready (role=%s, agent_id=%s)", role, agent.agent_id)
 
+    # 项目上下文（AGENTS.md 等价物）加载状态：启动即注入 Agent 系统上下文
+    from openlab.core.project_context import find_project_context
+
+    _project_ctx = find_project_context()
+    if _project_ctx:
+        logger.info("project context loaded (%d chars)", len(_project_ctx))
+    else:
+        logger.info("no project context file found (AGENTS.md/CLAUDE.md)")
+
     # P0-2：spawn 存活校验协议 — 初始化完成后向 agent_d 发送 ready 信号
     print(_make_ready(role), flush=True)
 
