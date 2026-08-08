@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.0.0",
+  "agent_id": "reviewer_v1",
+  "agent_name": "Reviewer Agent",
+  "version": "0.1.1",
+  "role": "reviewer",
+  "description": "代码审查智能体，负责代码质量审查、最佳实践检查、重构建议与文档评审。",
+  "capabilities": [
+    {
+      "name": "code_review",
+      "description": "审查代码质量和最佳实践",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "string", "description": "待审查代码"},
+          "context": {"type": "string", "description": "代码上下文"}
+        },
+        "required": ["code"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "findings": {"type": "array", "items": {"type": "string"}, "description": "审查发现"},
+          "severity": {"type": "string", "enum": ["critical", "major", "minor", "nit"], "description": "最高严重级别"}
+        }
+      },
+      "estimated_tokens": 5000,
+      "avg_duration_ms": 3500,
+      "success_rate": 0.93
+    },
+    {
+      "name": "best_practices",
+      "description": "检查代码是否符合最佳实践",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "string", "description": "待检查代码"},
+          "language": {"type": "string", "description": "编程语言"}
+        },
+        "required": ["code"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "violations": {"type": "array", "items": {"type": "string"}, "description": "违反项"},
+          "suggestions": {"type": "array", "items": {"type": "string"}, "description": "改进建议"}
+        }
+      },
+      "estimated_tokens": 3000,
+      "avg_duration_ms": 2000
+    },
+    {
+      "name": "refactoring_suggestions",
+      "description": "提供重构建议",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "string", "description": "待重构代码"}
+        },
+        "required": ["code"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "refactoring_plan": {"type": "string", "description": "重构方案"},
+          "risk": {"type": "string", "description": "风险说明"}
+        }
+      },
+      "estimated_tokens": 4000,
+      "avg_duration_ms": 3000
+    },
+    {
+      "name": "documentation_review",
+      "description": "审查文档质量",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document": {"type": "string", "description": "待审查文档"}
+        },
+        "required": ["document"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "issues": {"type": "array", "items": {"type": "string"}, "description": "文档问题"},
+          "rating": {"type": "number", "description": "质量评分 (0-5)"}
+        }
+      },
+      "estimated_tokens": 2000,
+      "avg_duration_ms": 1500
+    }
+  ],
+  "models": {
+    "system1": "deepseek-v4-flash",
+    "system2": "deepseek-v4-flash"
+  },
+  "required_permissions": [
+    "read_project_context",
+    "read:git_history"
+  ],
+  "cost_profile": {
+    "token_per_task_avg": 3500,
+    "api_cost_per_task": 0.007,
+    "maintenance_level": "community"
+  },
+  "trust_metrics": {
+    "install_count": 0,
+    "rating": 0.0,
+    "verified_provider": false,
+    "last_audit": "2026-07-31"
+  },
+  "extensions": {
+    "preferred_llm_provider": "deepseek",
+    "implementation_status": "implemented"
+  }
+}
