@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: 2026 SPHARX Ltd.
+# SPDX-License-Identifier: AGPL-3.0-or-later OR Apache-2.0
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentrt-agents"
+version = "0.1.1"
+description = "Airymax Agents - built-in agent execution bodies (driven by agent_d)"
+license = "AGPL-3.0-or-later OR Apache-2.0"
+authors = [{ name = "SPHARX Ltd." }]
+keywords = ["agent", "ai", "agentrt", "airymax", "multi-agent"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Artificial Intelligence",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "agentrt>=0.1.1",
+    "agentrt-openlab>=0.1.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/spharx/agentrt"
+Repository = "https://github.com/spharx/agentrt"
+Issues = "https://github.com/spharx/agentrt/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["airymax_agents*"]
+
+[tool.setuptools.package-data]
+airymax_agents = ["**/contract.json", "**/prompts/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"
+asyncio_mode = "auto"
