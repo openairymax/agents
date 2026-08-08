@@ -240,11 +240,78 @@ def test_get_agent_unknown_role_normalizes_to_coding(mock_llm):
     assert isinstance(agent, AirymaxAgent)
 
 
-def test_agent_registry_has_eight_roles():
-    """AGENT_REGISTRY 含 8 个 role 条目。"""
-    assert len(AGENT_REGISTRY) == 8
+def test_agent_registry_has_eleven_roles():
+    """AGENT_REGISTRY 含 11 个 role 条目。"""
+    assert len(AGENT_REGISTRY) == 11
     expected_roles = {
         "product_manager", "architect", "backend",
         "frontend", "devops", "security", "tester", "coding",
+        "data_engineer", "reviewer", "analyst",
     }
     assert set(AGENT_REGISTRY.keys()) == expected_roles
+
+
+# ── 内置工具注册（tool_d 接线） ─────────────────────────
+
+
+BUILTIN_TOOL_IDS = (
+    "fs_read",
+    "fs_write",
+    "fs_list",
+    "shell_run",
+    "web_fetch",
+    "fs_glob",
+    "fs_grep",
+    "fs_edit",
+    "web_search",
+)
+
+
+def test_builtin_tools_registered_when_syscall_proxy_provided(
+    mock_llm, mock_syscall_proxy
+):
+    """注入 syscall_proxy 时，9 个 tool_d 内置工具应注册为 function-calling 工具。"""
+    agent = ProductManagerAgent(llm=mock_llm, syscall_proxy=mock_syscall_proxy)
+    for tool_id in BUILTIN_TOOL_IDS:
+        assert agent.get_tool(tool_id) is not None, f"{tool_id} not registered"
+        assert tool_id in agent._tool_schemas, f"{tool_id} schema missing"
+        assert "parameters" in agent._tool_schemas[tool_id]
+
+
+def test_builtin_tools_not_registered_without_syscall_proxy(mock_llm):
+    """syscall_proxy=None 时保持纯 LLM 模式，不注册内置工具。"""
+    agent = ProductManagerAgent(llm=mock_llm, syscall_proxy=None)
+    assert agent.get_tool("fs_read") is None
+
+
+@pytest.mark.asyncio
+async def test_builtin_tool_dispatcher_calls_tool_execute(
+    mock_llm, mock_syscall_proxy
+):
+    """dispatch 应调用 syscall_proxy.tool_execute 并返回其结果。"""
+    mock_syscall_proxy.tool_execute.return_value = {
+        "success": True, "output": "file content", "error": "", "exit_code": 0,
+    }
+    agent = ProductManagerAgent(llm=mock_llm, syscall_proxy=mock_syscall_proxy)
+    dispatcher = agent.get_tool("fs_read")
+    result = dispatcher({"path": "/tmp/a.txt"})
+    mock_syscall_proxy.tool_execute.assert_called_once_with(
+        "fs_read", {"path": "/tmp/a.txt"}
+    )
+    assert result["output"] == "file content"
+
+
+def test_builtin_tool_schemas_required_aligned_with_tool_d():
+    """BUILTIN_TOOL_SCHEMAS 的 required 必须齐备（tool_d validator 全参数必填）。"""
+    from airymax_agents.base import BUILTIN_TOOL_SCHEMAS
+
+    assert set(BUILTIN_TOOL_SCHEMAS) == set(BUILTIN_TOOL_IDS)
+    for tool_id, schema in BUILTIN_TOOL_SCHEMAS.items():
+        params = schema["parameters"]
+        assert params["type"] == "object"
+        required = params.get("required") or []
+        assert required, f"{tool_id} missing required"
+        for field in required:
+            assert field in params["properties"], (
+                f"{tool_id}.{field} required but not declared"
+            )

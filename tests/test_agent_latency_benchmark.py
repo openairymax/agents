@@ -177,6 +177,14 @@ pytestmark = pytest.mark.skipif(
 
 def test_python_vs_rust_agent_latency(capsys):
     """对比 Python 与 Rust coding_agent 的 spawn/invoke 延迟并打印报告。"""
+    # 前置条件：Rust binary 需先构建（见文件头注释）。缺失时跳过 Rust
+    # 对比（Python 基准照常跑），避免无意义的硬失败——Rust 缺失时 agent_d
+    # 会静默回退 Python，对比失去意义。
+    if not os.path.isfile(_RUST_BIN) or not os.access(_RUST_BIN, os.X_OK):
+        pytest.skip(
+            f"Rust binary 未构建（{_RUST_BIN} 不存在或不可执行）；"
+            f"请先构建至该路径或设置 AIRY_RUST_AGENT_BIN"
+        )
     py = _bench_one("python", _BENCH_ROUNDS)
     rs = _bench_one("rust", _BENCH_ROUNDS)
 

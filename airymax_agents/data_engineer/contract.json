@@ -1,0 +1,121 @@
+{
+  "schema_version": "1.0.0",
+  "agent_id": "data_engineer_v1",
+  "agent_name": "Data Engineer Agent",
+  "version": "0.1.1",
+  "role": "data_engineer",
+  "description": "数据工程师智能体，负责数据管道构建、ETL 开发、数据建模与数据分析。",
+  "capabilities": [
+    {
+      "name": "data_pipeline",
+      "description": "设计和实现数据管道",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "source": {"type": "string", "description": "数据源描述"},
+          "sink": {"type": "string", "description": "数据去向"},
+          "requirements": {"type": "string", "description": "管道需求"}
+        },
+        "required": ["source"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "pipeline_design": {"type": "string", "description": "管道设计"},
+          "steps": {"type": "array", "items": {"type": "string"}, "description": "管道步骤"}
+        }
+      },
+      "estimated_tokens": 6000,
+      "avg_duration_ms": 4500,
+      "success_rate": 0.9
+    },
+    {
+      "name": "etl_development",
+      "description": "开发 ETL 流程",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "source_schema": {"type": "string", "description": "源数据 schema"},
+          "target_schema": {"type": "string", "description": "目标 schema"},
+          "transform_rules": {"type": "string", "description": "转换规则"}
+        },
+        "required": ["source_schema"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "etl_code": {"type": "string", "description": "ETL 代码"},
+          "explanation": {"type": "string", "description": "实现说明"}
+        }
+      },
+      "estimated_tokens": 5000,
+      "avg_duration_ms": 4000
+    },
+    {
+      "name": "data_modeling",
+      "description": "设计数据模型",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "business_requirements": {"type": "string", "description": "业务需求"},
+          "existing_schema": {"type": "string", "description": "既有 schema"}
+        },
+        "required": ["business_requirements"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "model_design": {"type": "string", "description": "模型设计 (DDL/DML)"},
+          "rationale": {"type": "string", "description": "设计理由"}
+        }
+      },
+      "estimated_tokens": 7000,
+      "avg_duration_ms": 5000
+    },
+    {
+      "name": "analytics",
+      "description": "执行数据分析",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "dataset": {"type": "string", "description": "数据集描述"},
+          "questions": {"type": "array", "items": {"type": "string"}, "description": "分析问题"}
+        },
+        "required": ["dataset"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "findings": {"type": "array", "items": {"type": "string"}, "description": "分析结论"},
+          "metrics": {"type": "object", "description": "关键指标"}
+        }
+      },
+      "estimated_tokens": 4000,
+      "avg_duration_ms": 3000
+    }
+  ],
+  "models": {
+    "system1": "deepseek-v4-flash",
+    "system2": "deepseek-v4-flash"
+  },
+  "required_permissions": [
+    "read_project_context",
+    "write_project_artifacts",
+    "execute:data_jobs"
+  ],
+  "cost_profile": {
+    "token_per_task_avg": 5500,
+    "api_cost_per_task": 0.011,
+    "maintenance_level": "community"
+  },
+  "trust_metrics": {
+    "install_count": 0,
+    "rating": 0.0,
+    "verified_provider": false,
+    "last_audit": "2026-07-31"
+  },
+  "extensions": {
+    "preferred_llm_provider": "deepseek",
+    "implementation_status": "implemented"
+  }
+}

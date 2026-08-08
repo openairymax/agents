@@ -1,0 +1,119 @@
+{
+  "schema_version": "1.0.0",
+  "agent_id": "analyst_v1",
+  "agent_name": "Analyst Agent",
+  "version": "0.1.1",
+  "role": "analyst",
+  "description": "数据分析智能体，负责数据分析、趋势检测、分析报告生成与数据可视化。",
+  "capabilities": [
+    {
+      "name": "data_analysis",
+      "description": "执行数据分析",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "dataset": {"type": "string", "description": "数据集或数据描述"},
+          "questions": {"type": "array", "items": {"type": "string"}, "description": "分析问题"}
+        },
+        "required": ["dataset"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "findings": {"type": "array", "items": {"type": "string"}, "description": "分析结论"},
+          "metrics": {"type": "object", "description": "关键指标"}
+        }
+      },
+      "estimated_tokens": 6000,
+      "avg_duration_ms": 4000,
+      "success_rate": 0.91
+    },
+    {
+      "name": "trend_detection",
+      "description": "检测数据趋势",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "timeseries": {"type": "string", "description": "时间序列数据"},
+          "window": {"type": "string", "description": "观察窗口"}
+        },
+        "required": ["timeseries"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "trends": {"type": "array", "items": {"type": "string"}, "description": "检测到的趋势"},
+          "confidence": {"type": "number", "description": "置信度 (0-1)"}
+        }
+      },
+      "estimated_tokens": 4000,
+      "avg_duration_ms": 3000
+    },
+    {
+      "name": "report_generation",
+      "description": "生成分析报告",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "analysis_results": {"type": "string", "description": "分析结果"},
+          "audience": {"type": "string", "description": "报告受众"}
+        },
+        "required": ["analysis_results"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "report": {"type": "string", "description": "分析报告 (Markdown)"},
+          "recommendations": {"type": "array", "items": {"type": "string"}, "description": "业务建议"}
+        }
+      },
+      "estimated_tokens": 5000,
+      "avg_duration_ms": 3500
+    },
+    {
+      "name": "visualization",
+      "description": "创建数据可视化",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "data": {"type": "string", "description": "待可视化数据"},
+          "chart_types": {"type": "array", "items": {"type": "string"}, "description": "期望图表类型"}
+        },
+        "required": ["data"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "charts": {"type": "array", "items": {"type": "string"}, "description": "图表方案"},
+          "code": {"type": "string", "description": "绘图代码"}
+        }
+      },
+      "estimated_tokens": 3000,
+      "avg_duration_ms": 2500
+    }
+  ],
+  "models": {
+    "system1": "deepseek-v4-flash",
+    "system2": "deepseek-v4-flash"
+  },
+  "required_permissions": [
+    "read_project_context",
+    "write_project_artifacts",
+    "read:datasets"
+  ],
+  "cost_profile": {
+    "token_per_task_avg": 4500,
+    "api_cost_per_task": 0.012,
+    "maintenance_level": "community"
+  },
+  "trust_metrics": {
+    "install_count": 0,
+    "rating": 0.0,
+    "verified_provider": false,
+    "last_audit": "2026-07-31"
+  },
+  "extensions": {
+    "preferred_llm_provider": "deepseek",
+    "implementation_status": "implemented"
+  }
+}

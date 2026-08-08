@@ -1,4 +1,4 @@
-"""Airymax Agents — 内置 7 个 Agent 执行体
+"""Airymax Agents — 内置 11 个 Agent 执行体
 
 每个 Agent 子目录包含:
 - ``agent.py``       — 继承 :class:`AirymaxAgent` (→ :class:`LLMAgent`) 的具体实现
@@ -32,6 +32,9 @@ from .devops.agent import DevOpsAgent
 from .security.agent import SecurityAgent
 from .tester.agent import TesterAgent
 from .coding.agent import CodingAgent
+from .data_engineer.agent import DataEngineerAgent
+from .reviewer.agent import ReviewerAgent
+from .analyst.agent import AnalystAgent
 
 #: role → Agent 类
 AGENT_REGISTRY: Dict[str, type] = {
@@ -43,6 +46,9 @@ AGENT_REGISTRY: Dict[str, type] = {
     "security": SecurityAgent,
     "tester": TesterAgent,
     "coding": CodingAgent,
+    "data_engineer": DataEngineerAgent,
+    "reviewer": ReviewerAgent,
+    "analyst": AnalystAgent,
 }
 
 #: 规划器抽象角色 → 执行体角色 归一化映射
@@ -64,7 +70,6 @@ ROLE_ALIASES: Dict[str, str] = {
     "validator": "tester",
     "executor": "devops",
     "retriever": "architect",
-    "analyst": "architect",
     "summarizer": "product_manager",
 }
 
@@ -81,7 +86,8 @@ def get_agent(
     """按 role 名实例化 Agent。
 
     参数:
-        role:              角色 (product_manager/architect/backend/frontend/devops/security/tester)
+        role:              角色 (product_manager/architect/backend/frontend/devops/
+                            security/tester/coding/data_engineer/reviewer/analyst)
         llm:               LLM 客户端；None 时用 :func:`make_llm_client`
         contract_overrides: 契约字段覆盖 (例如临时换 model)
         syscall_proxy:     agentrt 系统调用代理 (SyscallProxy)；
@@ -121,4 +127,7 @@ __all__ = [
     "SecurityAgent",
     "TesterAgent",
     "CodingAgent",
+    "DataEngineerAgent",
+    "ReviewerAgent",
+    "AnalystAgent",
 ]
