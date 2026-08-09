@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "agent-contract"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "agent-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "reqwest",
@@ -26,7 +26,7 @@ dependencies = [
 
 [[package]]
 name = "agent-ffi"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "libc",
  "thiserror 1.0.69",
@@ -109,7 +109,7 @@ dependencies = [
 
 [[package]]
 name = "coding_agent"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "agent-contract",
  "agent-core",

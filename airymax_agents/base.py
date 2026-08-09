@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
@@ -188,7 +189,12 @@ class AirymaxAgent(LLMAgent):
 
         super().__init__(
             contract=contract,
-            llm=llm if llm is not None else make_llm_client(),
+            # 决策 D（2026-08-09）：执行体（worker）主推理默认 t1-p——优先读
+            # $AIRY_MODEL_T1P，未设置回落 make_llm_client 既有解析（AIRY_AGENT_MODEL
+            # > OPENAI_MODEL > gpt-4o-mini）。
+            llm=llm
+            if llm is not None
+            else make_llm_client(default_model=os.environ.get("AIRY_MODEL_T1P")),
             system_prompt=system_prompt,
         )
         # agentrt 系统调用代理（None 时为纯 Python 向后兼容模式）

@@ -296,7 +296,7 @@ async def test_builtin_tool_dispatcher_calls_tool_execute(
     dispatcher = agent.get_tool("fs_read")
     result = dispatcher({"path": "/tmp/a.txt"})
     mock_syscall_proxy.tool_execute.assert_called_once_with(
-        "fs_read", {"path": "/tmp/a.txt"}
+        "fs_read", {"path": "/tmp/a.txt"}, agent.agent_id
     )
     assert result["output"] == "file content"
 
