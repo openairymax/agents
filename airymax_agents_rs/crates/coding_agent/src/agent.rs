@@ -31,8 +31,12 @@ pub struct CodingAgent {
 
 impl CodingAgent {
     /// 使用默认 LLM 客户端（环境感知：`$OPENAI_API_KEY` → 真实，否则 mock）。
+    /// 决策 D（2026-08-09）：执行体主推理默认 t1-p（worker 层）——优先读
+    /// `$AIRY_MODEL_T1P`，未设置回落既有默认模型。
     pub fn new(contract_path: PathBuf) -> Self {
-        Self::with_llm(contract_path, make_llm_client("gpt-4o-mini", false))
+        let default_model =
+            std::env::var("AIRY_MODEL_T1P").unwrap_or_else(|_| "gpt-4o-mini".to_string());
+        Self::with_llm(contract_path, make_llm_client(&default_model, false))
     }
 
     /// 显式指定 LLM 客户端（测试 / 基准对比用）。
@@ -115,12 +119,17 @@ impl Agent for CodingAgent {
             input.data.len()
         );
 
-        // 模型：契约 models.system2（t2 主思考，与 Python LLMAgent._model_system2 对齐）
-        let model = self
-            .contract
-            .as_ref()
-            .and_then(|c| Some(c.models.system2.clone()))
+        // 模型分层（决策 D 2026-08-09）：执行体（worker）主推理优先 t1-p——
+        // `$AIRY_MODEL_T1P` > 契约 models.system2（历史 t2 主思考语义保留）> 回退。
+        let model = std::env::var("AIRY_MODEL_T1P")
+            .ok()
             .filter(|m| !m.is_empty())
+            .or_else(|| {
+                self.contract
+                    .as_ref()
+                    .and_then(|c| Some(c.models.system2.clone()))
+                    .filter(|m| !m.is_empty())
+            })
             .unwrap_or_else(|| "gpt-4o-mini".to_string());
 
         let messages = vec![
