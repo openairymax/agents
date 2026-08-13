@@ -12,15 +12,26 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "prompt": {"type": "string", "description": "代码生成需求描述"}
+          "prompt": {
+            "type": "string",
+            "description": "代码生成需求描述"
+          }
         },
-        "required": ["prompt"]
+        "required": [
+          "prompt"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "code": {"type": "string", "description": "生成的代码"},
-          "explanation": {"type": "string", "description": "实现说明"}
+          "code": {
+            "type": "string",
+            "description": "生成的代码"
+          },
+          "explanation": {
+            "type": "string",
+            "description": "实现说明"
+          }
         }
       },
       "estimated_tokens": 2000,
@@ -29,7 +40,7 @@
     }
   ],
   "models": {
-    "system1": "gpt-4o-mini",
+    "system1": "",
     "system2": "gpt-4o-mini"
   },
   "required_permissions": [

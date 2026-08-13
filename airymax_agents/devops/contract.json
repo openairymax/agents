@@ -12,16 +12,33 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "repo_type": {"type": "string", "description": "仓库类型"},
-          "stages": {"type": "array", "items": {"type": "string"}, "description": "所需阶段 (lint/test/build/deploy)"}
+          "repo_type": {
+            "type": "string",
+            "description": "仓库类型"
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "所需阶段 (lint/test/build/deploy)"
+          }
         },
-        "required": ["repo_type"]
+        "required": [
+          "repo_type"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "pipeline_config": {"type": "string", "description": "流水线配置文件 (YAML)"},
-          "explanation": {"type": "string", "description": "配置说明"}
+          "pipeline_config": {
+            "type": "string",
+            "description": "流水线配置文件 (YAML)"
+          },
+          "explanation": {
+            "type": "string",
+            "description": "配置说明"
+          }
         }
       },
       "estimated_tokens": 5000,
@@ -34,16 +51,39 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "app_spec": {"type": "string", "description": "应用规格"},
-          "target": {"type": "string", "enum": ["docker", "kubernetes", "serverless"], "description": "部署目标"}
+          "app_spec": {
+            "type": "string",
+            "description": "应用规格"
+          },
+          "target": {
+            "type": "string",
+            "enum": [
+              "docker",
+              "kubernetes",
+              "serverless"
+            ],
+            "description": "部署目标"
+          }
         },
-        "required": ["app_spec", "target"]
+        "required": [
+          "app_spec",
+          "target"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "manifest": {"type": "string", "description": "部署清单"},
-          "scripts": {"type": "array", "items": {"type": "string"}, "description": "辅助脚本"}
+          "manifest": {
+            "type": "string",
+            "description": "部署清单"
+          },
+          "scripts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "辅助脚本"
+          }
         }
       },
       "estimated_tokens": 6000,
@@ -55,16 +95,30 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "infra_requirements": {"type": "string", "description": "基础设施需求"},
-          "provider": {"type": "string", "description": "云厂商 (aws/gcp/azure)"}
+          "infra_requirements": {
+            "type": "string",
+            "description": "基础设施需求"
+          },
+          "provider": {
+            "type": "string",
+            "description": "云厂商 (aws/gcp/azure)"
+          }
         },
-        "required": ["infra_requirements"]
+        "required": [
+          "infra_requirements"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "iac_code": {"type": "string", "description": "IaC 代码"},
-          "explanation": {"type": "string", "description": "实现说明"}
+          "iac_code": {
+            "type": "string",
+            "description": "IaC 代码"
+          },
+          "explanation": {
+            "type": "string",
+            "description": "实现说明"
+          }
         }
       },
       "estimated_tokens": 7000,
@@ -72,7 +126,7 @@
     }
   ],
   "models": {
-    "system1": "gpt-4o-mini",
+    "system1": "",
     "system2": "deepseek-v4-flash"
   },
   "required_permissions": [
