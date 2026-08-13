@@ -12,16 +12,33 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "architecture_doc": {"type": "string", "description": "架构文档"},
-          "prd": {"type": "string", "description": "产品需求文档"}
+          "architecture_doc": {
+            "type": "string",
+            "description": "架构文档"
+          },
+          "prd": {
+            "type": "string",
+            "description": "产品需求文档"
+          }
         },
-        "required": ["architecture_doc"]
+        "required": [
+          "architecture_doc"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "openapi_spec": {"type": "string", "description": "OpenAPI 3.0 规范 (YAML)"},
-          "endpoints": {"type": "array", "items": {"type": "string"}, "description": "端点列表"}
+          "openapi_spec": {
+            "type": "string",
+            "description": "OpenAPI 3.0 规范 (YAML)"
+          },
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "端点列表"
+          }
         }
       },
       "estimated_tokens": 6000,
@@ -34,17 +51,34 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "spec": {"type": "string", "description": "API 规范或任务描述"},
-          "language": {"type": "string", "description": "实现语言 (如 python/go)"}
+          "spec": {
+            "type": "string",
+            "description": "API 规范或任务描述"
+          },
+          "language": {
+            "type": "string",
+            "description": "实现语言 (如 python/go)"
+          }
         },
-        "required": ["spec"]
+        "required": [
+          "spec"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "code": {"type": "string", "description": "实现代码"},
-          "tests": {"type": "string", "description": "单元测试代码"},
-          "explanation": {"type": "string", "description": "实现说明"}
+          "code": {
+            "type": "string",
+            "description": "实现代码"
+          },
+          "tests": {
+            "type": "string",
+            "description": "单元测试代码"
+          },
+          "explanation": {
+            "type": "string",
+            "description": "实现说明"
+          }
         }
       },
       "estimated_tokens": 8000,
@@ -56,17 +90,40 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "entities": {"type": "array", "items": {"type": "string"}, "description": "实体列表"},
-          "db_type": {"type": "string", "description": "数据库类型"}
+          "entities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "实体列表"
+          },
+          "db_type": {
+            "type": "string",
+            "description": "数据库类型"
+          }
         },
-        "required": ["entities"]
+        "required": [
+          "entities"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "schema_ddl": {"type": "string", "description": "DDL 语句"},
-          "indexes": {"type": "array", "items": {"type": "string"}, "description": "索引策略"},
-          "migration_script": {"type": "string", "description": "迁移脚本"}
+          "schema_ddl": {
+            "type": "string",
+            "description": "DDL 语句"
+          },
+          "indexes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "索引策略"
+          },
+          "migration_script": {
+            "type": "string",
+            "description": "迁移脚本"
+          }
         }
       },
       "estimated_tokens": 5000,
@@ -74,7 +131,7 @@
     }
   ],
   "models": {
-    "system1": "gpt-4o-mini",
+    "system1": "",
     "system2": "deepseek-v4-flash"
   },
   "required_permissions": [

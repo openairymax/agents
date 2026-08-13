@@ -12,17 +12,37 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "target": {"type": "string", "description": "待审计的代码/架构文档"},
-          "scope": {"type": "string", "description": "审计范围"}
+          "target": {
+            "type": "string",
+            "description": "待审计的代码/架构文档"
+          },
+          "scope": {
+            "type": "string",
+            "description": "审计范围"
+          }
         },
-        "required": ["target"]
+        "required": [
+          "target"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "overall_score": {"type": "number", "description": "安全评分 (0-1)"},
-          "findings": {"type": "array", "description": "发现的安全问题"},
-          "recommendations": {"type": "array", "items": {"type": "string"}, "description": "修复建议"}
+          "overall_score": {
+            "type": "number",
+            "description": "安全评分 (0-1)"
+          },
+          "findings": {
+            "type": "array",
+            "description": "发现的安全问题"
+          },
+          "recommendations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "修复建议"
+          }
         }
       },
       "estimated_tokens": 6000,
@@ -35,16 +55,30 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "manifest": {"type": "string", "description": "依赖清单 (package.json/requirements.txt 等)"},
-          "config": {"type": "string", "description": "配置文件"}
+          "manifest": {
+            "type": "string",
+            "description": "依赖清单 (package.json/requirements.txt 等)"
+          },
+          "config": {
+            "type": "string",
+            "description": "配置文件"
+          }
         },
-        "required": ["manifest"]
+        "required": [
+          "manifest"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "vulnerabilities": {"type": "array", "description": "漏洞列表"},
-          "remediation": {"type": "string", "description": "修复建议"}
+          "vulnerabilities": {
+            "type": "array",
+            "description": "漏洞列表"
+          },
+          "remediation": {
+            "type": "string",
+            "description": "修复建议"
+          }
         }
       },
       "estimated_tokens": 4000,
@@ -56,16 +90,33 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "architecture_doc": {"type": "string", "description": "架构文档"},
-          "data_sensitivity": {"type": "string", "description": "数据敏感等级"}
+          "architecture_doc": {
+            "type": "string",
+            "description": "架构文档"
+          },
+          "data_sensitivity": {
+            "type": "string",
+            "description": "数据敏感等级"
+          }
         },
-        "required": ["architecture_doc"]
+        "required": [
+          "architecture_doc"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "threats": {"type": "array", "description": "威胁列表 (STRIDE 分类)"},
-          "mitigations": {"type": "array", "items": {"type": "string"}, "description": "缓解措施"}
+          "threats": {
+            "type": "array",
+            "description": "威胁列表 (STRIDE 分类)"
+          },
+          "mitigations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "缓解措施"
+          }
         }
       },
       "estimated_tokens": 5500,
@@ -73,7 +124,7 @@
     }
   ],
   "models": {
-    "system1": "gpt-4o-mini",
+    "system1": "",
     "system2": "deepseek-v4-flash"
   },
   "required_permissions": [
@@ -82,7 +133,7 @@
   ],
   "cost_profile": {
     "token_per_task_avg": 5500,
-    "api_cost_per_task": 0.020,
+    "api_cost_per_task": 0.02,
     "maintenance_level": "community"
   },
   "trust_metrics": {

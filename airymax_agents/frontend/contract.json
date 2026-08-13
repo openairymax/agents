@@ -12,21 +12,35 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "design_spec": {"type": "string", "description": "设计稿描述或 PRD"},
-          "framework": {"type": "string", "description": "前端框架 (react/vue/svelte)"}
+          "design_spec": {
+            "type": "string",
+            "description": "设计稿描述或 PRD"
+          },
+          "framework": {
+            "type": "string",
+            "description": "前端框架 (react/vue/svelte)"
+          }
         },
-        "required": ["design_spec"]
+        "required": [
+          "design_spec"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "code": {"type": "string", "description": "实现代码"},
-          "explanation": {"type": "string", "description": "实现说明"}
+          "code": {
+            "type": "string",
+            "description": "实现代码"
+          },
+          "explanation": {
+            "type": "string",
+            "description": "实现说明"
+          }
         }
       },
       "estimated_tokens": 7000,
       "avg_duration_ms": 4000,
-      "success_rate": 0.90
+      "success_rate": 0.9
     },
     {
       "name": "component_design",
@@ -34,15 +48,26 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "requirements": {"type": "string", "description": "组件需求"}
+          "requirements": {
+            "type": "string",
+            "description": "组件需求"
+          }
         },
-        "required": ["requirements"]
+        "required": [
+          "requirements"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "component_tree": {"type": "string", "description": "组件树描述"},
-          "props_contracts": {"type": "string", "description": "组件 props 契约 (TS 接口)"}
+          "component_tree": {
+            "type": "string",
+            "description": "组件树描述"
+          },
+          "props_contracts": {
+            "type": "string",
+            "description": "组件 props 契约 (TS 接口)"
+          }
         }
       },
       "estimated_tokens": 5000,
@@ -54,17 +79,38 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "app_description": {"type": "string", "description": "应用描述"},
-          "complexity": {"type": "string", "enum": ["low", "medium", "high"]}
+          "app_description": {
+            "type": "string",
+            "description": "应用描述"
+          },
+          "complexity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
         },
-        "required": ["app_description"]
+        "required": [
+          "app_description"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "recommendation": {"type": "string", "description": "推荐方案"},
-          "store_structure": {"type": "string", "description": "状态结构"},
-          "rationale": {"type": "string", "description": "选型理由"}
+          "recommendation": {
+            "type": "string",
+            "description": "推荐方案"
+          },
+          "store_structure": {
+            "type": "string",
+            "description": "状态结构"
+          },
+          "rationale": {
+            "type": "string",
+            "description": "选型理由"
+          }
         }
       },
       "estimated_tokens": 4500,
@@ -72,7 +118,7 @@
     }
   ],
   "models": {
-    "system1": "gpt-4o-mini",
+    "system1": "",
     "system2": "deepseek-v4-flash"
   },
   "required_permissions": [

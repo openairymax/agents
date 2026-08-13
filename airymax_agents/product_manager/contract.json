@@ -21,7 +21,9 @@
             "description": "业务上下文信息"
           }
         },
-        "required": ["goal"]
+        "required": [
+          "goal"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -32,7 +34,9 @@
           },
           "user_stories": {
             "type": "array",
-            "items": {"type": "string"},
+            "items": {
+              "type": "string"
+            },
             "description": "用户故事列表"
           }
         }
@@ -52,7 +56,9 @@
             "description": "结构化需求数据"
           }
         },
-        "required": ["structured_requirements"]
+        "required": [
+          "structured_requirements"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -68,7 +74,7 @@
     }
   ],
   "models": {
-    "system1": "gpt-4o-mini",
+    "system1": "",
     "system2": "deepseek-v4-flash"
   },
   "required_permissions": [
