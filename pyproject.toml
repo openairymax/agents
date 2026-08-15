@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentrt-agents"
-version = "0.1.1"
+version = "0.1.2"
 description = "Airymax Agents - built-in agent execution bodies (driven by agent_d)"
 license = "AGPL-3.0-or-later OR Apache-2.0"
 authors = [{ name = "SPHARX Ltd." }]

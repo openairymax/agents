@@ -38,10 +38,29 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 from typing import Any, Optional
 
 logger = logging.getLogger("runner")
+
+# 内容级失败信号（防 L2 缓存中毒）：LLM 最终回复（无工具调用）被 openlab
+# 无条件判为 success=True，即使内容明确表达「无法完成/工具被拒/推诿用户」。
+# 命中任一模式即把 execute 结果降级为失败，避免 agent_d 将失败回复原样
+# 上报、CLI 误 absorb 为 SUCCESS 写入 L2 语义缓存（失败建议被当作成功重放）。
+# 只匹配「陈述失败/推诿」的强信号，条件句（如「如果无法运行则…」）不命中。
+_FAILURE_RE = re.compile(
+    r"(我无法|我暂时无法|无法完成|无法创建|无法执行|无法写入|无法生成|"
+    r"无法安装|无法启动|无法停止|无法提供|未能完成|未能创建|未能执行|"
+    r"被禁用|被拒绝|禁用了|不允许使用|permission denied|"
+    r"请自行|请手动|请在终端|你可以直接在|你可以在终端|需要你手动|需要您手动)",
+    re.IGNORECASE,
+)
+
+
+def _content_declares_failure(text: str) -> bool:
+    """回复文本是否明确表达任务未能完成（供调用方降级 success）。"""
+    return bool(_FAILURE_RE.search(text))
 
 
 def _parse_spec(spec_str: str) -> dict:
@@ -100,6 +119,13 @@ async def _execute_once(agent: Any, agent_id: str, user_input: str) -> str:
     if not success:
         err = getattr(result, "error", None) or "agent execution failed"
         return _make_response(success=False, error=str(err))
+    # 内容级失败降级：LLM 回复明确表达未能完成任务（工具被拒/无法执行/
+    # 推诿用户）时按失败上报，防止 L2 缓存把失败建议当成功吸收。
+    if _content_declares_failure(str(output)):
+        return _make_response(
+            success=False,
+            error="agent reported it could not complete the task: " + str(output)[:200],
+        )
     return _make_response(output=str(output), success=True)
 
 
@@ -169,6 +195,18 @@ def main() -> int:
             req = json.loads(line)
             agent_id = req.get("agent_id", "unknown")
             user_input = req.get("input", "")
+            # Decision E workspace isolation: when agent_d forwards an isolated
+            # workspace_dir (wh_agent_invoke -> agent.invoke -> child request),
+            # chdir into it so the agent acts inside the task workspace instead
+            # of the daemon's cwd (avoids tool-round exhaustion exploring the
+            # host tree). Directory missing is non-fatal (best-effort).
+            ws_dir = req.get("workspace_dir") or ""
+            if ws_dir:
+                try:
+                    os.chdir(ws_dir)
+                    logger.debug("runner chdir to workspace: %s", ws_dir)
+                except OSError as e:
+                    logger.warning("runner chdir to workspace %s failed: %s", ws_dir, e)
         except (json.JSONDecodeError, AttributeError) as e:
             print(_make_response(success=False, error=f"bad request: {e}"), flush=True)
             continue
