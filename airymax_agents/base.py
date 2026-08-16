@@ -199,6 +199,10 @@ class AirymaxAgent(LLMAgent):
         )
         # agentrt 系统调用代理（None 时为纯 Python 向后兼容模式）
         self._sys = syscall_proxy
+        # 任务工作目录（runner 每次 invoke 前设置，可随请求变化）：工具
+        # dispatch 把相对路径解析为该目录内的绝对路径（tool_d 保持无状态，
+        # 文件落点跟随任务而非 daemon cwd）。
+        self.workspace_dir: Optional[str] = None
         # 注入代理后注册 tool_d 内置工具（注册失败降级为纯 LLM，不阻断）
         self._register_builtin_tools()
         logger.debug(
@@ -239,6 +243,30 @@ class AirymaxAgent(LLMAgent):
                     self.agent_id, tool_id, e,
                 )
 
+    #: 工具参数中含路径的字段（相对路径 → workspace 内绝对路径）。
+    #: fs_glob 的 base 与 fs_grep 的 path 同为目录/文件定位字段。
+    _PATH_TOOL_PARAMS = {
+        "fs_read": ("path",),
+        "fs_write": ("path",),
+        "fs_list": ("path",),
+        "fs_glob": ("base",),
+        "fs_grep": ("path",),
+        "fs_edit": ("path",),
+    }
+
+    def _resolve_tool_path(self, path: str) -> str:
+        """把工具路径参数解析为 workspace 内的绝对路径。
+
+        相对路径（如 ``src/main.py``、``.``）基于任务 workspace 解析，
+        绝对路径原样保留（agent 显式访问 workspace 之外的路径不被改写）。
+        workspace 未设置或路径为空时原样返回，保证与 daemon cwd 兼容。
+        """
+        if not path or not self.workspace_dir:
+            return path
+        if os.path.isabs(path):
+            return path
+        return os.path.normpath(os.path.join(self.workspace_dir, path))
+
     def _make_tool_dispatcher(
         self, tool_id: str
     ) -> Callable[[Dict[str, Any]], Dict[str, Any]]:
@@ -248,8 +276,18 @@ class AirymaxAgent(LLMAgent):
         （LLMAgent._invoke_tool 会把它包装进 asyncio.to_thread 执行）。
         结果由 tool_d 直接返回：``{success, output, error, exit_code}``。
         """
+        path_keys = self._PATH_TOOL_PARAMS.get(tool_id, ())
 
         def _dispatch(params: Dict[str, Any]) -> Dict[str, Any]:
+            # 路径类工具：把相对路径解析为任务 workspace 内的绝对路径，
+            # 使文件落点跟随任务（tool_d 的 fs_* 以自身 cwd 为基准执行，
+            # 相对路径会落到 daemon cwd，见 builtin_fs.c）。
+            if path_keys and isinstance(params, dict):
+                params = dict(params)
+                for key in path_keys:
+                    val = params.get(key)
+                    if isinstance(val, str) and val:
+                        params[key] = self._resolve_tool_path(val)
             # P0 交互式审批：透传真实 agent_id，tool_d 按该主体做 ACL 判定，
             # 未授权工具进入 pending（AIRY_TOOL_APPROVAL_MODE=interactive）。
             return self._sys.tool_execute(
