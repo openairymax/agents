@@ -207,6 +207,12 @@ def main() -> int:
                     logger.debug("runner chdir to workspace: %s", ws_dir)
                 except OSError as e:
                     logger.warning("runner chdir to workspace %s failed: %s", ws_dir, e)
+            # 同步给 agent：工具 dispatch 把相对路径解析为 workspace 内的
+            # 绝对路径（tool_d fs_* 以自身 cwd 为基准，见 base.py）。
+            try:
+                agent.workspace_dir = ws_dir or None
+            except Exception as e:
+                logger.warning("set agent workspace_dir failed (non-fatal): %s", e)
         except (json.JSONDecodeError, AttributeError) as e:
             print(_make_response(success=False, error=f"bad request: {e}"), flush=True)
             continue
