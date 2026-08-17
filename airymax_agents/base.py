@@ -253,6 +253,9 @@ class AirymaxAgent(LLMAgent):
         "fs_grep": ("path",),
         "fs_edit": ("path",),
     }
+    #: 以命令形式执行的工具：注入 cwd 使相对路径在任务 workspace 内解析
+    #: （tool_d 的 shell_run 支持可选 cwd 参数，子进程 chdir 后执行）。
+    _CWD_TOOL_IDS = ("shell_run",)
 
     def _resolve_tool_path(self, path: str) -> str:
         """把工具路径参数解析为 workspace 内的绝对路径。
@@ -288,6 +291,11 @@ class AirymaxAgent(LLMAgent):
                     val = params.get(key)
                     if isinstance(val, str) and val:
                         params[key] = self._resolve_tool_path(val)
+            # 命令类工具：注入 cwd，使命令内的相对路径在任务 workspace 内
+            # 解析（tool_d 的 shell_run 支持可选 cwd 参数，子进程 chdir）。
+            if tool_id in self._CWD_TOOL_IDS and self.workspace_dir:
+                params = dict(params) if isinstance(params, dict) else {}
+                params.setdefault("cwd", self.workspace_dir)
             # P0 交互式审批：透传真实 agent_id，tool_d 按该主体做 ACL 判定，
             # 未授权工具进入 pending（AIRY_TOOL_APPROVAL_MODE=interactive）。
             return self._sys.tool_execute(
