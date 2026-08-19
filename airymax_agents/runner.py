@@ -49,18 +49,64 @@ logger = logging.getLogger("runner")
 # 命中任一模式即把 execute 结果降级为失败，避免 agent_d 将失败回复原样
 # 上报、CLI 误 absorb 为 SUCCESS 写入 L2 语义缓存（失败建议被当作成功重放）。
 # 只匹配「陈述失败/推诿」的强信号，条件句（如「如果无法运行则…」）不命中。
+# 2026-08-19：收窄宽泛模式——"我无法""无法执行"会被只读验证者（validator）
+# 的能力说明命中（"我无法直接执行 fs_write，但验证通过"是角色受限，不是任务
+# 失败）。失败信号改为目标导向（无法完成/无法创建/...），"无法执行"要求
+# 后接任务目标动词。
 _FAILURE_RE = re.compile(
-    r"(我无法|我暂时无法|无法完成|无法创建|无法执行|无法写入|无法生成|"
+    r"(我无法(完成|创建|写入|生成|安装|启动|停止|提供|执行任务)|我暂时无法(完成|创建|写入|"
+    r"生成|安装|启动|停止|提供|执行任务)|无法完成任务|无法完成|无法创建|无法写入|无法生成|"
     r"无法安装|无法启动|无法停止|无法提供|未能完成|未能创建|未能执行|"
     r"被禁用|被拒绝|禁用了|不允许使用|permission denied|"
     r"请自行|请手动|请在终端|你可以直接在|你可以在终端|需要你手动|需要您手动)",
     re.IGNORECASE,
 )
 
+# 明确成功结论：输出同时给出通过/达标结论时，上面的失败信号只指工具能力
+# 受限（如"我无法直接执行写操作，但验证通过"），不代表任务失败，不降级。
+_SUCCESS_OVERRIDE_RE = re.compile(
+    r"(验证通过|校验通过|检查通过|任务目标已达成|目标已达成|已完成|成功达成|满足要求)",
+    re.IGNORECASE,
+)
+
 
 def _content_declares_failure(text: str) -> bool:
     """回复文本是否明确表达任务未能完成（供调用方降级 success）。"""
-    return bool(_FAILURE_RE.search(text))
+    if not _FAILURE_RE.search(text):
+        return False
+    # 明确的成功结论覆盖：只读验证者能力说明 + 通过结论 → 判定成功。
+    if _SUCCESS_OVERRIDE_RE.search(text):
+        return False
+    return True
+
+
+# 只读验证角色：任务管线中的 validator/verifier 与认知审查 reviewer 只允许
+# 读取与联网，禁止任何写操作。除系统提示词约束外，此处做能力隔离——直接
+# 从 agent 的工具注册表移除写工具，LLM 看不到也调不到（模型行为不可控，
+# 仅靠提示词无法可靠阻止越界，见 2026-08-19 tester_v1 越界 fs_write 根因）。
+READONLY_ROLES = frozenset({"validator", "verifier", "reviewer"})
+
+# 写操作工具：从只读角色的工具注册表与 schema 中移除。
+WRITE_TOOLS = frozenset({"fs_write", "fs_edit", "fs_delete", "shell_run"})
+
+
+def _apply_role_tool_limits(agent: Any, role: str) -> None:
+    """按角色收紧 agent 可用工具。
+
+    只读角色移除写工具（fs_write/fs_edit/fs_delete/shell_run）：LLM
+    function-calling 的 schema 与其可调用注册表同时移除，实现能力隔离。
+    其他角色保持完整工具集。
+    """
+    if role not in READONLY_ROLES:
+        return
+    tools = getattr(agent, "_tools", None)
+    schemas = getattr(agent, "_tool_schemas", None)
+    for tid in WRITE_TOOLS:
+        if isinstance(tools, dict):
+            tools.pop(tid, None)
+        if isinstance(schemas, dict):
+            schemas.pop(tid, None)
+    logger.info("read-only role %s: write tools isolated (%d)", role, len(WRITE_TOOLS))
 
 
 def _parse_spec(spec_str: str) -> dict:
@@ -166,6 +212,9 @@ def main() -> int:
         from airymax_agents import get_agent
 
         agent = get_agent(role, syscall_proxy=syscall_proxy)
+        # 角色工具白名单（只读角色能力隔离）：须在 initialize 前应用，
+        # 确保 function-calling 始终看不到被移除的工具。
+        _apply_role_tool_limits(agent, role)
         asyncio.run(agent.initialize())
     except Exception as e:
         logger.exception("agent init failed (role=%s)", role)
