@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 #: （如 fs_list 的 path），LLM 按 schema 不传参会导致工具校验失败。
 BUILTIN_TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
     "fs_read": {
-        "description": "Read a file's content from the local filesystem",
+        "description": "Read a file's content",
         "parameters": {
             "type": "object",
             "properties": {"path": {"type": "string"}},
@@ -55,7 +55,7 @@ BUILTIN_TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
         },
     },
     "fs_write": {
-        "description": "Write content to a local file (creates or overwrites)",
+        "description": "Write content to a file (create/overwrite)",
         "parameters": {
             "type": "object",
             "properties": {
@@ -66,7 +66,7 @@ BUILTIN_TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
         },
     },
     "fs_list": {
-        "description": "List entries of a local directory (JSON array)",
+        "description": "List a directory's entries",
         "parameters": {
             "type": "object",
             "properties": {"path": {"type": "string"}},
@@ -74,15 +74,18 @@ BUILTIN_TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
         },
     },
     "shell_run": {
-        "description": "Execute a shell command and capture its output",
+        "description": "Run a shell command, capture output",
         "parameters": {
             "type": "object",
-            "properties": {"command": {"type": "string"}},
+            "properties": {
+                "command": {"type": "string"},
+                "cwd": {"type": "string", "description": "Working directory (default: task dir)"},
+            },
             "required": ["command"],
         },
     },
     "web_fetch": {
-        "description": "Fetch a web page over HTTP(S) and return its body text",
+        "description": "Fetch a URL, return page body text",
         "parameters": {
             "type": "object",
             "properties": {"url": {"type": "string"}},
@@ -90,28 +93,22 @@ BUILTIN_TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
         },
     },
     "fs_glob": {
-        "description": (
-            "List files matching a glob pattern under a base directory "
-            "(supports * ? and ** for recursive match; returns newline-separated paths)"
-        ),
+        "description": "List files by glob pattern",
         "parameters": {
             "type": "object",
             "properties": {
-                "pattern": {"type": "string"},
+                "pattern": {"type": "string", "description": "Glob pattern (* ? **), relative to base"},
                 "base": {"type": "string"},
             },
             "required": ["pattern"],
         },
     },
     "fs_grep": {
-        "description": (
-            "Search file contents with a POSIX extended regular expression "
-            "(returns relpath:lineno:text lines; skips .git/node_modules/build etc.)"
-        ),
+        "description": "Regex search file contents",
         "parameters": {
             "type": "object",
             "properties": {
-                "pattern": {"type": "string"},
+                "pattern": {"type": "string", "description": "POSIX ERE; skips .git/node_modules/build"},
                 "path": {"type": "string"},
                 "glob": {"type": "string"},
                 "max_results": {"type": "integer"},
@@ -120,23 +117,20 @@ BUILTIN_TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
         },
     },
     "fs_edit": {
-        "description": (
-            "Replace an exact string in a file (search-and-replace edit). "
-            "Use for surgical edits instead of rewriting whole files."
-        ),
+        "description": "Replace exact text in a file (search-and-replace)",
         "parameters": {
             "type": "object",
             "properties": {
                 "path": {"type": "string"},
-                "old": {"type": "string"},
-                "new": {"type": "string"},
+                "old": {"type": "string", "description": "Exact text to match"},
+                "new": {"type": "string", "description": "Replacement text"},
                 "count": {"type": "integer"},
             },
             "required": ["path", "old", "new"],
         },
     },
     "web_search": {
-        "description": "Search the web (DuckDuckGo) and return ranked title/url/snippet results",
+        "description": "Search the web, return ranked results",
         "parameters": {
             "type": "object",
             "properties": {
