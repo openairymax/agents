@@ -24,7 +24,6 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     "agentrt>=0.1.1",
-    "agentrt-openlab>=0.1.1",
 ]
 
 [project.urls]
@@ -34,7 +33,7 @@ Issues = "https://github.com/spharx/agentrt/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["airymax_agents*"]
+include = ["airymax_agents*", "orchestration*"]
 
 [tool.setuptools.package-data]
 airymax_agents = ["**/contract.json", "**/prompts/*.md"]

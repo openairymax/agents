@@ -44,7 +44,7 @@ from typing import Any, Optional
 
 logger = logging.getLogger("runner")
 
-# 内容级失败信号（防 L2 缓存中毒）：LLM 最终回复（无工具调用）被 openlab
+# 内容级失败信号（防 L2 缓存中毒）：LLM 最终回复（无工具调用）被 orchestration
 # 无条件判为 success=True，即使内容明确表达「无法完成/工具被拒/推诿用户」。
 # 命中任一模式即把 execute 结果降级为失败，避免 agent_d 将失败回复原样
 # 上报、CLI 误 absorb 为 SUCCESS 写入 L2 语义缓存（失败建议被当作成功重放）。
@@ -154,7 +154,7 @@ def _make_ready(role: str) -> str:
 
 async def _execute_once(agent: Any, agent_id: str, user_input: str) -> str:
     """执行一次 Agent 调用，返回 JSON 响应字符串。"""
-    from openlab.core.agent import AgentContext
+    from orchestration.core.agent import AgentContext
 
     ctx = AgentContext(agent_id=agent_id)
     result = await agent.execute(user_input, ctx)
@@ -224,7 +224,7 @@ def main() -> int:
     logger.info("runner ready (role=%s, agent_id=%s)", role, agent.agent_id)
 
     # 项目上下文（AGENTS.md 等价物）加载状态：启动即注入 Agent 系统上下文
-    from openlab.core.project_context import find_project_context
+    from orchestration.core.project_context import find_project_context
 
     _project_ctx = find_project_context()
     if _project_ctx:

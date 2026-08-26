@@ -33,7 +33,7 @@ from airymax_agents import (
     get_agent,
 )
 from airymax_agents.base import AirymaxAgent
-from openlab.core.agent import TaskResult
+from orchestration.core.agent import TaskResult
 
 
 # ── 辅助上下文管理器 ──────────────────────────────────────
@@ -278,10 +278,17 @@ def test_builtin_tools_registered_when_syscall_proxy_provided(
         assert "parameters" in agent._tool_schemas[tool_id]
 
 
-def test_builtin_tools_not_registered_without_syscall_proxy(mock_llm):
-    """syscall_proxy=None 时保持纯 LLM 模式，不注册内置工具。"""
+def test_builtin_tools_registered_with_unavailable_dispatcher_without_syscall_proxy(
+    mock_llm,
+):
+    """syscall_proxy=None 时注册显式报错分发器（非静默消失），调用返回失败原因。"""
     agent = ProductManagerAgent(llm=mock_llm, syscall_proxy=None)
-    assert agent.get_tool("fs_read") is None
+    dispatcher = agent.get_tool("fs_read")
+    assert dispatcher is not None, "工具不应静默消失，应注册显式报错分发器"
+    result = dispatcher({"path": "/tmp/a.txt"})
+    assert result["success"] is False
+    assert result["exit_code"] == 1
+    assert "未初始化" in result["error"]
 
 
 @pytest.mark.asyncio
