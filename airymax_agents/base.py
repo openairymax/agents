@@ -222,8 +222,31 @@ class AirymaxAgent(LLMAgent):
         dispatch 经 ``syscall_proxy.tool_execute`` 直连 tool_d。单个工具
         注册失败仅记录 warning 并跳过该工具，不阻断 Agent 初始化
         （降级为纯 LLM 模式）。
+
+        2026-08-26 修复（防静默丢失）：SyscallProxy 不可用（_sys is None）
+        时不再让工具凭空消失——那样 LLM 完全不知道自己有工具能力缺失，
+        function-calling 直接无工具可用，subagent"无法使用工具"且无任何
+        可诊断信号。改为注册显式报错的分发器：LLM 调用时返回明确的失败
+        原因（SDK 缺失/损坏 → 提示修复路径），可诊断、可自愈。
         """
         if self._sys is None:
+            for tool_id, schema in BUILTIN_TOOL_SCHEMAS.items():
+                try:
+                    self.register_tool(
+                        tool_id,
+                        self._make_unavailable_dispatcher(tool_id),
+                        schema=schema,
+                    )
+                    logger.warning(
+                        "AirymaxAgent[%s] SyscallProxy 不可用：工具 '%s' 已注册为"
+                        "显式报错（调用将返回失败原因）",
+                        self.agent_id, tool_id,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "AirymaxAgent[%s] register builtin tool '%s' failed: %s",
+                        self.agent_id, tool_id, e,
+                    )
             return
         for tool_id, schema in BUILTIN_TOOL_SCHEMAS.items():
             try:
@@ -242,6 +265,29 @@ class AirymaxAgent(LLMAgent):
                     "(non-fatal, degraded to pure LLM): %s",
                     self.agent_id, tool_id, e,
                 )
+
+    def _make_unavailable_dispatcher(
+        self, tool_id: str
+    ) -> Callable[[Dict[str, Any]], Dict[str, Any]]:
+        """SyscallProxy 缺失时工具的显式报错分发器（非桩实现）。
+
+        返回与 tool_d 一致的失败结构 ``{success:false, error, exit_code}``，
+        让 LLM 能把"工具不可用"转述给用户而不是无提示地消失。
+        """
+        def _dispatch(params: Dict[str, Any]) -> Dict[str, Any]:
+            del params
+            return {
+                "success": False,
+                "error": (
+                    f"无法执行工具 {tool_id}：agentrt SyscallProxy 未初始化"
+                    "（Python SDK 缺失、损坏或 socket 不可达）。"
+                    "请检查 agentrt SDK 安装：pip install -e sdk-python，"
+                    "并确认 mem_d/agent_d/tool_d daemon 正常运行。"
+                ),
+                "exit_code": 1,
+            }
+
+        return _dispatch
 
     #: 工具参数中含路径的字段（相对路径 → workspace 内绝对路径）。
     #: fs_glob 的 base 与 fs_grep 的 path 同为目录/文件定位字段。
