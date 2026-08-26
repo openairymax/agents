@@ -20,7 +20,7 @@
 设计原则 (Simplicity is beauty)：
 - 零样板：子类只需声明 ROLE，余下由基类自动装配
 - 零配置：契约 + 提示词随包发布，开箱即用
-- 与 openlab 解耦：仅依赖 ``openlab.agents.LLMAgent`` 与 ``openlab.core.llm``
+- 与 orchestration 内核解耦：仅依赖 ``orchestration.agents.LLMAgent`` 与 ``orchestration.core.llm``
 - agentrt 接入可选：注入 ``SyscallProxy`` 后自动持久化上下文/结果，
   ``None`` 时退化为纯 Python LLM 模式（向后兼容）
 """
@@ -34,8 +34,8 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-from openlab.agents import LLMAgent
-from openlab.core.llm import make_llm_client
+from orchestration.agents import LLMAgent
+from orchestration.core.llm import make_llm_client
 
 logger = logging.getLogger(__name__)
 

@@ -5,9 +5,9 @@
 # -*- coding: utf-8 -*-
 """AirymaxAgent 测试套件共享 fixtures 与 sys.path 装配。
 
-将 ``airymax_agents/`` 与 ``openlab/`` 包根目录加入 ``sys.path``，
+将 ``airymax_agents/`` 与 ``orchestration/`` 包根目录加入 ``sys.path``，
 使测试可经 ``from airymax_agents import get_agent`` 与
-``from openlab.core.agent import TaskResult`` 直接导入，无需额外环境变量。
+``from orchestration.core.agent import TaskResult`` 直接导入，无需额外环境变量。
 """
 
 import os
@@ -21,10 +21,10 @@ import pytest
 _HERE = os.path.dirname(os.path.abspath(__file__))
 # tests/ → agents/ (含 airymax_agents/ 包)
 _AGENTS_DIR = os.path.dirname(_HERE)
-# agents/ → ecosystem/openlab/ (含 openlab/ 包)
-_OPENLAB_DIR = os.path.join(os.path.dirname(_AGENTS_DIR), "openlab")
+# agents/ → orchestration/ 包（多智能体编排内核，原 openlab 叶子仓并入）
+_ORCH_DIR = os.path.join(_AGENTS_DIR, "orchestration")
 
-for _p in (_AGENTS_DIR, _OPENLAB_DIR):
+for _p in (_AGENTS_DIR, _ORCH_DIR):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 

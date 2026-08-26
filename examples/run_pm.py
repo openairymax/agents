@@ -1,6 +1,6 @@
 """端到端示例 — 调用 Product Manager Agent 生成 PRD
 
-验证 airymax_agents 包 + openlab LLMAgent 执行链路完整可用，
+验证 airymax_agents 包 + orchestration LLMAgent 执行链路完整可用，
 并演示 agentrt 系统调用接入（FFI/IPC 双后端）。
 
 运行方式::
@@ -23,20 +23,20 @@ import os
 import sys
 from pathlib import Path
 
-# 把 agents/ 自身 + ../openlab/ + ../../sdk/sdk-python/ 加到 sys.path
+# 把 agents/ 自身 + orchestration/ + ../../sdk/sdk-python/ 加到 sys.path
 # agents/ 根目录使 `import airymax_agents` 可用
-# ../openlab/ 使 `import openlab` 可用
+# orchestration/（agents/ 内）使 `import orchestration` 可用
 # ../../sdk/sdk-python/ 使 `import agentrt` 可用
 HERE = Path(__file__).resolve().parent
 AGENTS_ROOT = HERE.parent
-OPENLAB_ROOT = AGENTS_ROOT.parent / "openlab"
+ORCH_ROOT = AGENTS_ROOT / "orchestration"
 SDK_PYTHON_ROOT = AGENTS_ROOT.parent.parent / "sdk" / "sdk-python"
 sys.path.insert(0, str(AGENTS_ROOT))
-sys.path.insert(0, str(OPENLAB_ROOT))
+sys.path.insert(0, str(ORCH_ROOT))
 sys.path.insert(0, str(SDK_PYTHON_ROOT))
 
 from airymax_agents import get_agent, list_agents
-from openlab.core.agent import AgentContext
+from orchestration.core.agent import AgentContext
 
 
 def _maybe_build_syscall_proxy():

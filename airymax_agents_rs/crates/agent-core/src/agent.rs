@@ -38,7 +38,7 @@ impl AgentInput {
 
 /// Agent 执行结果。
 ///
-/// 与 Python 侧 `openlab.core.agent.TaskResult` 字段对齐：
+/// 与 Python 侧 `orchestration.core.agent.TaskResult` 字段对齐：
 /// success/output/error/metrics。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TaskResult {
