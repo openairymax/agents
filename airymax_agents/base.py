@@ -129,6 +129,17 @@ BUILTIN_TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
             "required": ["path", "old", "new"],
         },
     },
+    "fs_delete": {
+        "description": "Delete a file or directory (use recursive=true for directories)",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "recursive": {"type": "boolean", "description": "Delete directories recursively"},
+            },
+            "required": ["path"],
+        },
+    },
     "web_search": {
         "description": "Search the web, return ranked results",
         "parameters": {
@@ -159,8 +170,8 @@ class AirymaxAgent(LLMAgent):
       - ``SyscallProxy(...)``：execute() 在 LLM 推理前后将输入上下文与
         最终结果写入 mem_d 守护进程持久化，便于跨会话/跨 Agent 检索。
         持久化失败不阻断 LLM 推理（仅记录 warning），保证业务可用性。
-        同时把 9 个 tool_d 内置工具（fs_read/fs_write/fs_list/shell_run/
-        web_fetch/fs_glob/fs_grep/fs_edit/web_search）注册为
+        同时把 10 个 tool_d 内置工具（fs_read/fs_write/fs_list/shell_run/
+        web_fetch/fs_glob/fs_grep/fs_edit/fs_delete/web_search）注册为
         function-calling 工具，让 LLM 真正具备读写文件、搜索代码、
         执行命令、抓取/搜索网页的能力（dispatch 直连 tool_d，见
         :meth:`_register_builtin_tools`）。
@@ -210,7 +221,7 @@ class AirymaxAgent(LLMAgent):
     # ── 内置工具（tool_d 接线） ───────────────────────────
 
     def _register_builtin_tools(self) -> None:
-        """把 5 个 tool_d 内置工具注册为 LLM function-calling 工具。
+        """把 10 个 tool_d 内置工具注册为 LLM function-calling 工具。
 
         仅当注入 ``syscall_proxy`` 时注册（纯 Python 向后兼容模式跳过）；
         dispatch 经 ``syscall_proxy.tool_execute`` 直连 tool_d。单个工具
@@ -292,6 +303,7 @@ class AirymaxAgent(LLMAgent):
         "fs_glob": ("base",),
         "fs_grep": ("path",),
         "fs_edit": ("path",),
+        "fs_delete": ("path",),
     }
     #: 以命令形式执行的工具：注入 cwd 使相对路径在任务 workspace 内解析
     #: （tool_d 的 shell_run 支持可选 cwd 参数，子进程 chdir 后执行）。
