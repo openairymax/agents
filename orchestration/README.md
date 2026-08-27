@@ -5,6 +5,13 @@
 
 > **Status**: 本模块作为 AgentRT 的正式组成部分，API 持续演进中。本模块通过 JSON-RPC 2.0 协议与 AgentRT 核心运行时集成。
 
+> **与 AgentRT 运行时编排的关系（边界，SSoT）**：本模块是**生态应用层**的多
+> Agent 编排参考框架（Python），面向 Agent 应用开发者——组织 Agent 逻辑、任务、
+> 工具与存储，通过 JSON-RPC 与运行时交互。AgentRT 运行时自身的任务调度与 DAG
+> 引擎（`sched_d` / `agent_d`，C 实现）是**运行时基础设施**，负责执行体调度与
+> 生命周期。二者互补而非替代：应用层编排策略（planning / dispatching）在此迭代，
+> 稳定后由运行时按契约承接；禁止在本模块内重新实现运行时调度。
+
 ## 概述
 
 Orchestration 是 Airymax 平台的多智能体编排框架，提供 Agent 管理、任务调度、工具执行、数据存储四大核心能力，以及调度策略（dispatching / planning）和异常处理、日志记录等基础设施。本模块遵循 AgentRT 架构设计原则 V1.8，实现了生产级多智能体编排框架的核心抽象层。
