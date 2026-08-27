@@ -1,4 +1,4 @@
-"""OpenLab Agents — LLM Agent 执行体
+"""Airymax Agents — LLM Agent 执行体
 
 :class:`LLMAgent` 继承 ``orchestration.core.agent.Agent`` 基类，补全三要素：
   1. LLM 调用         — 通过 ``orchestration.core.llm.LLMClient`` (OpenAI 兼容)

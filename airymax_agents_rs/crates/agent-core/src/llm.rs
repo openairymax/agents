@@ -1,13 +1,13 @@
 // SPDX-FileCopyrightText: 2026 SPHARX Ltd.
 // SPDX-License-Identifier: AGPL-3.0-or-later OR Apache-2.0
-//! LLM 客户端基础设施 — 与 Python `openlab.core.llm` 对齐。
+//! LLM 客户端基础设施 — 与 Python `orchestration.core.llm` 对齐。
 //!
 //! - [`LlmClient`]       — 异步 chat trait
 //! - [`OpenAiLlmClient`] — 真实客户端（OpenAI Chat Completions 兼容协议，reqwest + rustls）
 //! - [`MockLlmClient`]   — 离线确定性 mock（无 API key 亦可跑通，含 50ms 模拟延迟）
 //! - [`make_llm_client`] — 环境感知工厂（`$OPENAI_API_KEY` 存在 → 真实，否则 → mock）
 //!
-//! 设计原则 (Simplicity is beauty)：行为与 `openlab.core.llm` 严格对齐，
+//! 设计原则 (Simplicity is beauty)：行为与 `orchestration.core.llm` 严格对齐，
 //! 保证 Python / Rust 两端在基准测试中 LLM 侧开销一致，差异即框架开销。
 
 use crate::error::{AgentError, Result};
@@ -52,7 +52,7 @@ pub struct LlmResponse {
     pub elapsed_ms: u64,
 }
 
-/// LLM 客户端 trait，与 Python `openlab.core.llm.LLMClient.chat` 对齐。
+/// LLM 客户端 trait，与 Python `orchestration.core.llm.LLMClient.chat` 对齐。
 #[async_trait]
 pub trait LlmClient: Send + Sync {
     /// 调用一次 chat，返回最终文本内容。

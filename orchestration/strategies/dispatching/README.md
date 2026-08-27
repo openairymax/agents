@@ -56,13 +56,13 @@ class DispatchingStrategy:
 
 ## 依赖关系
 
-- **核心依赖**: AgentRT OpenLab Core
+- **核心依赖**: AgentRT orchestration Core
 - **Python**: >= 3.10, typing
 
 ## 使用示例
 
 ```python
-from contrib.strategies.dispatching import DispatchingStrategy
+from orchestration.strategies.dispatching import DispatchingStrategy
 
 dispatcher = DispatchingStrategy(strategy="capability_match")
 

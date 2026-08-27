@@ -2,7 +2,7 @@
 orchestration.utils.exceptions - Custom exception classes
 
 Base Exception Hierarchy:
-    OpenLabError
+    AirymaxError
     +-- AgentError
     |   +-- AgentInitializationError
     |   +-- AgentExecutionError
@@ -25,7 +25,7 @@ Base Exception Hierarchy:
 """
 
 
-class OpenLabError(Exception):
+class AirymaxError(Exception):
     def __init__(self, message: str = "", code: str = "", details: dict = None):
         super().__init__(message)
         self.message = message
@@ -38,7 +38,7 @@ class OpenLabError(Exception):
         return self.message
 
 
-class AgentError(OpenLabError):
+class AgentError(AirymaxError):
     pass
 
 
@@ -54,7 +54,7 @@ class AgentNotFoundError(AgentError):
     pass
 
 
-class TaskError(OpenLabError):
+class TaskError(AirymaxError):
     pass
 
 
@@ -70,7 +70,7 @@ class TaskNotFoundError(TaskError):
     pass
 
 
-class ToolError(OpenLabError):
+class ToolError(AirymaxError):
     pass
 
 
@@ -86,7 +86,7 @@ class ToolNotFoundError(ToolError):
     pass
 
 
-class StorageError(OpenLabError):
+class StorageError(AirymaxError):
     pass
 
 
@@ -102,7 +102,7 @@ class StorageWriteError(StorageError):
     pass
 
 
-class ValidationError(OpenLabError):
+class ValidationError(AirymaxError):
     pass
 
 
@@ -115,7 +115,7 @@ class ConfigurationError(ValidationError):
 
 
 __all__ = [
-    "OpenLabError",
+    "AirymaxError",
     "AgentError", "AgentInitializationError", "AgentExecutionError", "AgentNotFoundError",
     "TaskError", "TaskCreationError", "TaskExecutionError", "TaskNotFoundError",
     "ToolError", "ToolInitializationError", "ToolExecutionError", "ToolNotFoundError",

@@ -20,7 +20,7 @@
 前置条件（环境）：
   - agent_d / mem_d 守护进程运行于 ${AIRY_RUNTIME_DIR:-/tmp/agentrt}
   - agent_d 启动时注入 PYTHONPATH 指向 ``ecosystem/agents`` 与
-    ``ecosystem/openlab``（Python runner 子进程 import 依赖）
+    ``ecosystem/agents/orchestration``（Python runner 子进程 import 依赖）
   - Rust binary 已构建于 ``/tmp/agentrt-rs-build/release/coding_agent``
     （或通过环境变量 ``AIRY_RUST_AGENT_BIN`` 覆盖）
 

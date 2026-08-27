@@ -1,5 +1,5 @@
 """
-OpenLab Core Module
+orchestration Core Module
 
 核心模块导出：Agent / Task / Tool / Storage / LLM
 """

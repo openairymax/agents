@@ -3,7 +3,7 @@
 """
 AgentRT orchestration.protocols — Protocol Integration Bindings
 
-将 AgentRT 协议系统集成到 OpenLab 应用框架中,提供:
+将 AgentRT 协议系统集成到 Airymax 应用框架中,提供:
 - ProtocolSessionManager — 协议会话管理器
 - ProtocolAgentAdapter — 协议感知的智能体适配器
 - ProtocolToolBridge — 协议工具桥接(MCP工具→AgentRT Skill)
@@ -151,7 +151,7 @@ class ProtocolHandler(ABC):
 
 class ProtocolSessionManager:
     """
-    Manages multi-protocol sessions for OpenLab agents.
+    Manages multi-protocol sessions for Airymax agents.
 
     Each session maintains connections to one or more protocol backends,
     handles automatic failover between protocols, and provides unified

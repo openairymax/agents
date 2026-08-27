@@ -5,7 +5,7 @@ Provides common utilities including logging configuration and custom exceptions.
 """
 
 from .exceptions import (
-    OpenLabError,
+    AirymaxError,
     AgentError, AgentInitializationError, AgentExecutionError, AgentNotFoundError,
     TaskError, TaskCreationError, TaskExecutionError, TaskNotFoundError,
     ToolError, ToolInitializationError, ToolExecutionError, ToolNotFoundError,
@@ -16,7 +16,7 @@ from .logging import setup_logger, get_logger
 
 __all__ = [
     "setup_logger", "get_logger",
-    "OpenLabError",
+    "AirymaxError",
     "AgentError", "AgentInitializationError", "AgentExecutionError", "AgentNotFoundError",
     "TaskError", "TaskCreationError", "TaskExecutionError", "TaskNotFoundError",
     "ToolError", "ToolInitializationError", "ToolExecutionError", "ToolNotFoundError",

@@ -5,7 +5,7 @@
 Unit Tests for Core Agent Module
 ================================
 
-Tests for openlab.core.agent module.
+Tests for orchestration.core.agent module.
 These tests verify the Agent, AgentRegistry, and related classes.
 """
 

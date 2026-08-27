@@ -1,5 +1,5 @@
 """
-OpenLab Core Storage Module
+orchestration Core Storage Module
 
 Data storage abstraction core module
 Following AgentRT architecture design principles V1.8

@@ -1,5 +1,5 @@
 """
-OpenLab Core Task Module
+orchestration Core Task Module
 
 Task scheduling and state machine core module
 Following AgentRT architecture design principles V1.8

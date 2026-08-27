@@ -7,15 +7,15 @@
 
 ## 概述
 
-Strategies 是 OpenLab 社区贡献的调度与规划策略集合，定义 Agent 协作的模式和任务编排方式。该模块包含两大策略：Dispatching（任务调度）和 Planning（任务规划），分别解决"任务分发给谁"和"任务如何分解"两个核心问题，共同构建多智能体协作的编排基础。
+Strategies 是 Airymax 社区贡献的调度与规划策略集合，定义 Agent 协作的模式和任务编排方式。该模块包含两大策略：Dispatching（任务调度）和 Planning（任务规划），分别解决"任务分发给谁"和"任务如何分解"两个核心问题，共同构建多智能体协作的编排基础。
 
 ## 架构定位
 
 ```
 +-------------------------------------------------------------------+
-|                         OpenLab 开放生态                            |
+|                         Airymax 开放生态                            |
 +-------------------------------------------------------------------+
-|                     Contributions (contrib/)                       |
+|                     Contributions (官方 + 社区)                       |
 |  +------------------+  +------------------+  +------------------+ |
 |  |     Skills       |  |    Strategies    |  |     Agents       | |
 |  |  能力单元         |  |  协作模式        |  |  角色化智能体     | |
@@ -26,7 +26,7 @@ Strategies 是 OpenLab 社区贡献的调度与规划策略集合，定义 Agent
 |  +------------------+  +------------------+  | • ...            | |
 |                                              +------------------+ |
 +-------------------------------------------------------------------+
-|                     OpenLab Core (openlab/)                        |
+|                     orchestration Core (orchestration/core/)        |
 |  Agent Registry | Task Scheduler | Tool Executor | Storage         |
 +-------------------------------------------------------------------+
 ```
@@ -146,8 +146,8 @@ class PlanningStrategy:
 Dispatching 和 Planning 策略通常协同使用：先通过 Planning 将复杂任务分解为步骤，再通过 Dispatching 将每个步骤分配给合适的 Agent。
 
 ```python
-from contrib.strategies.planning import PlanningStrategy
-from contrib.strategies.dispatching import DispatchingStrategy
+from orchestration.strategies.planning import PlanningStrategy
+from orchestration.strategies.dispatching import DispatchingStrategy
 
 # 1. 规划：将复杂任务分解为步骤
 planner = PlanningStrategy()
@@ -169,7 +169,7 @@ for step in plan["steps"]:
 ### 单独使用 Dispatching
 
 ```python
-from contrib.strategies.dispatching import DispatchingStrategy
+from orchestration.strategies.dispatching import DispatchingStrategy
 
 dispatcher = DispatchingStrategy(strategy="capability_match")
 
@@ -187,7 +187,7 @@ print(f"Task dispatched to: {result['assigned_agents']}")
 ### 单独使用 Planning
 
 ```python
-from contrib.strategies.planning import PlanningStrategy, PlanStep
+from orchestration.strategies.planning import PlanningStrategy, PlanStep
 
 planner = PlanningStrategy()
 
@@ -210,7 +210,7 @@ for step in plan["steps"]:
 
 ### 创建新的社区策略
 
-1. 在 `contrib/strategies/` 下创建新目录（使用小写字母）
+1. 在 `orchestration/strategies/` 下创建新目录（使用小写字母）
 2. 实现策略核心类，提供标准化的异步接口
 3. 创建 `__init__.py` 导出策略类
 4. 编写 `README.md`，包含概述、核心组件、接口说明和使用示例
@@ -228,14 +228,14 @@ for step in plan["steps"]:
 
 | 模块 | 关系 |
 |------|------|
-| **contrib/agents/** | Dispatching 策略将任务分配给 Agent；Planning 策略在 PlanStep 中指定 `assigned_agent` |
-| **contrib/skills/** | Strategies 根据 Agent 拥有的 Skills 进行能力匹配调度 |
-| **openlab/core/** | Strategies 与 Core 的 TaskScheduler 协同工作，实现任务的调度和编排 |
+| **ecosystem/agents/** | Dispatching 策略将任务分配给 Agent；Planning 策略在 PlanStep 中指定 `assigned_agent` |
+| **ecosystem/skills/** | Strategies 根据 Agent 拥有的 Skills 进行能力匹配调度 |
+| **orchestration/core/** | Strategies 与 Core 的 TaskScheduler 协同工作，实现任务的调度和编排 |
 | **app/** | 应用层使用 Strategies 编排多 Agent 协作流程 |
 
 ## 依赖关系
 
-- **核心依赖**: Python >= 3.10, openlab.core, typing, dataclasses
+- **核心依赖**: Python >= 3.10, orchestration.core, typing, dataclasses
 - **协议依赖**: AgentRT protocols 层（JSON-RPC 2.0）
 
 ---

@@ -5,7 +5,7 @@
 Unit Tests for Core Task Module
 ================================
 
-Tests for openlab.core.task module.
+Tests for orchestration.core.task module.
 These tests verify the TaskScheduler, TaskDefinition, TaskState, and related classes.
 """
 

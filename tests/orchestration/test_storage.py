@@ -5,7 +5,7 @@
 Unit Tests for Core Storage Module
 ==================================
 
-Tests for openlab.core.storage module.
+Tests for orchestration.core.storage module.
 These tests verify the Storage, MemoryStorage, SQLiteStorage, and related classes.
 """
 

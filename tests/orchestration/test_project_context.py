@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR Apache-2.0
 """项目上下文文件加载（AGENTS.md 等价物）单测。
 
-覆盖 ``openlab/core/project_context.py``：
+覆盖 ``orchestration/core/project_context.py``：
   - find_project_context    向上逐级查找、.git 项目根边界、拼接路径标注
   - inject_project_context  system 消息注入顺序、未命中原样返回
 """

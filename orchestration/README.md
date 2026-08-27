@@ -1,4 +1,4 @@
-# OpenLab Core — 开放生态核心管理模块
+# Orchestration — 多智能体编排框架
 
 **模块路径**: `ecosystem/agents/orchestration/`
 **版本**: v0.1.1
@@ -7,23 +7,26 @@
 
 ## 概述
 
-OpenLab Core 是 OpenLab 生态系统的核心管理模块，提供 Agent 管理、任务调度、工具执行、数据存储四大核心能力，以及异常处理、日志记录等基础设施。本模块遵循 AgentRT 架构设计原则 V1.8，实现了生产级多智能体编排框架的核心抽象层。
+Orchestration 是 Airymax 平台的多智能体编排框架，提供 Agent 管理、任务调度、工具执行、数据存储四大核心能力，以及调度策略（dispatching / planning）和异常处理、日志记录等基础设施。本模块遵循 AgentRT 架构设计原则 V1.8，实现了生产级多智能体编排框架的核心抽象层。
 
 ## 目录结构
 
 ```
-openlab/
+orchestration/
 ├── __init__.py                 # 模块入口，导出所有核心类
 ├── core/                       # 核心组件
 │   ├── __init__.py             # 核心模块导出
 │   ├── agent.py                # Agent 基类、状态、注册表
 │   ├── task.py                 # 任务定义、状态机、调度器
 │   ├── tool.py                 # 工具抽象、注册表、执行器
-│   └── storage.py              # 存储抽象（Memory/SQLite）
-├── agents/                     # 预构建 Agent 实现
-│   └── architect/              # 架构师 Agent
-│       ├── __init__.py
-│       └── agent.py
+│   ├── storage.py              # 存储抽象（Memory/SQLite）
+│   ├── llm.py                  # LLM 客户端抽象
+│   └── project_context.py      # 项目上下文管理
+├── agents/                     # 内置 Agent 实现
+│   └── llm.py                  # LLM 驱动 Agent
+├── strategies/                 # 调度策略
+│   ├── dispatching/            # 分发策略
+│   └── planning/               # 规划策略
 ├── protocols/                  # 协议处理
 │   └── __init__.py
 ├── utils/                      # 工具函数
@@ -92,19 +95,18 @@ openlab/
 | `MemoryStorage` | 内存存储实现，支持 TTL 过期和条件查询 |
 | `SQLiteStorage` | SQLite 存储实现，支持索引（category/expires_at）和异步操作（run_in_executor） |
 
-## 预构建 Agent (`agents/architect/`)
+## 内置 Agent (`agents/`)
 
-内置架构师 Agent 实现：
+内置 LLM 驱动 Agent 实现：
 
 | 类 | 说明 |
 |----|------|
-| `ArchitectAgent` | 架构设计 Agent，支持 analyze/review/design 三种任务类型 |
-| `ArchitectConfig` | 配置类，包含 workspace_root/max_file_size/forbidden_paths/allowed_extensions |
+| `LLMAgent` | LLM 驱动 Agent，支持通过 LLMClient 进行智能任务执行 |
 
 ## 异常层级 (`utils/exceptions.py`)
 
 ```
-OpenLabError
+AirymaxError
 ├── AgentError
 │   ├── AgentInitializationError
 │   ├── AgentExecutionError

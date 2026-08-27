@@ -22,9 +22,9 @@ last_updated: "2026-08-01"
 # 统计（供 observability 与 CI 校验）
 _summary:
   total_agents: 14
-  enabled_agents: 9
-  planned_agents: 5
-  python_implemented: 8
+  enabled_agents: 12
+  planned_agents: 2
+  python_implemented: 11
   rust_implemented: 1
 
 # =============================================================================
@@ -33,6 +33,8 @@ _summary:
 agents:
 
   # ── 已实现 (Python, ecosystem/agents/airymax_agents/) ──────────────────
+  # 注：data_engineer / reviewer / analyst 已随 v0.1.1 补齐实现，
+  #     角色清单以 airymax_agents/__init__.py 的 AGENT_REGISTRY 为准。
 
   - agent_id: "product_manager_v1"
     role: "product_manager"
@@ -126,17 +128,39 @@ agents:
     contract_path: "ecosystem/agents/airymax_agents_rs/crates/coding_agent/contract.json"
     description: "代码生成、解释、重构 (Rust 实现，LLM 驱动)。"
 
-  # ── 已规划但未实现 (enabled: false, implementation_status: planned) ──────
+  # ── 已实现 (Python, ecosystem/agents/airymax_agents/) ──────────────────
 
   - agent_id: "data_engineer_v1"
     role: "data_engineer"
     source: "builtin"
     language: "python"
-    version: "0.0.0"
-    enabled: false
-    implementation_status: "planned"
-    contract_path: null  # TBD (planned)
+    version: "0.1.1"
+    enabled: true
+    implementation_status: "implemented"
+    contract_path: "ecosystem/agents/airymax_agents/data_engineer/contract.json"
     description: "数据处理、ETL 管道、数据建模。"
+
+  - agent_id: "reviewer_v1"
+    role: "reviewer"
+    source: "builtin"
+    language: "python"
+    version: "0.1.1"
+    enabled: true
+    implementation_status: "implemented"
+    contract_path: "ecosystem/agents/airymax_agents/reviewer/contract.json"
+    description: "代码评审、最佳实践建议、重构建议。"
+
+  - agent_id: "analyst_v1"
+    role: "analyst"
+    source: "builtin"
+    language: "python"
+    version: "0.1.1"
+    enabled: true
+    implementation_status: "implemented"
+    contract_path: "ecosystem/agents/airymax_agents/analyst/contract.json"
+    description: "数据分析、趋势检测、可视化报告。"
+
+  # ── 已规划但未实现 (enabled: false, implementation_status: planned) ──────
 
   - agent_id: "coordinator_v1"
     role: "coordinator"
@@ -147,26 +171,6 @@ agents:
     implementation_status: "planned"
     contract_path: null  # TBD (planned)
     description: "多 Agent 任务协调、资源分配、冲突解决。"
-
-  - agent_id: "reviewer_v1"
-    role: "reviewer"
-    source: "builtin"
-    language: "python"
-    version: "0.0.0"
-    enabled: false
-    implementation_status: "planned"
-    contract_path: null  # TBD (planned)
-    description: "代码评审、最佳实践建议、重构建议。"
-
-  - agent_id: "analyst_v1"
-    role: "analyst"
-    source: "builtin"
-    language: "python"
-    version: "0.0.0"
-    enabled: false
-    implementation_status: "planned"
-    contract_path: null  # TBD (planned)
-    description: "数据分析、趋势检测、可视化报告。"
 
   - agent_id: "custom_template_v1"
     role: "custom_template"

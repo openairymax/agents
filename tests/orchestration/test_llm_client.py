@@ -1,7 +1,7 @@
 # Copyright (c) 2026 SPHARX. All Rights Reserved.
 """LLM 客户端统一 key/base_url 解析单测。
 
-覆盖 ``openlab/core/llm.py`` 的变量名映射 SSoT：
+覆盖 ``orchestration/core/llm.py`` 的变量名映射 SSoT：
   - ``_resolve_api_key``    : OPENAI_API_KEY → DEEPSEEK_API_KEY → ANTHROPIC_API_KEY
   - ``_resolve_base_url``   : AIRY_LLM_BASE_URL → OPENAI_BASE_URL → 官方默认
   - ``make_llm_client``     : 任一兼容 key 存在即真实客户端，否则 mock

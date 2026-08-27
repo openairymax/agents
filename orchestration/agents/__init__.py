@@ -1,4 +1,4 @@
-"""OpenLab Agents — Agent 执行体基类集合
+"""Airymax Agents — Agent 执行体基类集合
 
 Agent 执行体基类统一定义于 ``orchestration.agents``：
 
