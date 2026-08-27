@@ -1,9 +1,9 @@
 # Copyright (c) 2026 SPHARX. All Rights Reserved.
 # "From data intelligence emerges."
 
-# OpenLab Dependencies
-# ====================
-# Core dependencies for OpenLab Agent Operating System
+# Airymax Orchestration Dependencies
+# ==================================
+# Core dependencies for Airymax multi-agent orchestration kernel
 
 # Runtime Requirements
 # --------------------

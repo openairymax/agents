@@ -5,7 +5,7 @@
 Pytest Configuration and Shared Fixtures
 ======================================
 
-This module provides shared pytest fixtures for the OpenLab test suite.
+This module provides shared pytest fixtures for the Airymax test suite.
 """
 
 import pytest

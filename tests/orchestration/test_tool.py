@@ -5,7 +5,7 @@
 Unit Tests for Core Tool Module
 ================================
 
-Tests for openlab.core.tool module.
+Tests for orchestration.core.tool module.
 These tests verify the Tool, ToolRegistry, ToolExecutor, and related classes.
 """
 

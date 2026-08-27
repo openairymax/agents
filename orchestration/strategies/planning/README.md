@@ -61,13 +61,13 @@ class PlanningStrategy:
 
 ## 依赖关系
 
-- **核心依赖**: AgentRT OpenLab Core
+- **核心依赖**: AgentRT orchestration Core
 - **Python**: >= 3.10, typing, dataclasses
 
 ## 使用示例
 
 ```python
-from contrib.strategies.planning import PlanningStrategy, PlanStep
+from orchestration.strategies.planning import PlanningStrategy, PlanStep
 
 planner = PlanningStrategy()
 

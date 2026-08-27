@@ -21,7 +21,7 @@ import pytest
 _HERE = os.path.dirname(os.path.abspath(__file__))
 # tests/ → agents/ (含 airymax_agents/ 包)
 _AGENTS_DIR = os.path.dirname(_HERE)
-# agents/ → orchestration/ 包（多智能体编排内核，原 openlab 叶子仓并入）
+# agents/ → orchestration/ 包（多智能体编排内核）
 _ORCH_DIR = os.path.join(_AGENTS_DIR, "orchestration")
 
 for _p in (_AGENTS_DIR, _ORCH_DIR):

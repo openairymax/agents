@@ -13,7 +13,7 @@
 - :class:`ReflectivePlanner`    — 反思式规划器：接受上次执行结果 / 反馈作为输入，
                                   基于反馈调整与改进计划
 
-所有规划器的 ``plan()`` 均为 async 签名，与 OpenLab 异步编排模型一致。
+所有规划器的 ``plan()`` 均为 async 签名，与 Airymax 异步编排模型一致。
 """
 
 from __future__ import annotations

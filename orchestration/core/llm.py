@@ -1,4 +1,4 @@
-"""OpenLab Core — LLM 客户端基础设施
+"""orchestration Core — LLM 客户端基础设施
 
 OpenAI Chat Completions 兼容协议 (https://platform.openai.com/docs/api-reference/chat)。
 

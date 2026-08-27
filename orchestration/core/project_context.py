@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR Apache-2.0
-"""OpenLab Core — 项目上下文文件加载（AGENTS.md 等价物）。
+"""orchestration Core — 项目上下文文件加载（AGENTS.md 等价物）。
 
 参照 Claude Code 的 CLAUDE.md / Codex 的 AGENTS.md 设计：Agent 启动或执行时
 自动向上查找项目约定文件，注入系统上下文，让 LLM 感知项目级约束

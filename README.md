@@ -1,6 +1,6 @@
 # Airymax Agents
 
-Airymax 内置 Agent 执行体集合 — 8 个开箱即用、遵循
+Airymax 内置 Agent 执行体集合 — 11 个开箱即用、遵循
 [`01-agent-contract.md`](https://gitcode.com/openairymax/docs/blob/main/AirymaxRT/20-modules/10-contracts/01-agent-contract.md)
 的智能体，覆盖软件交付全链路。Python 实现位于 `airymax_agents/`，
 Rust 实现位于 `airymax_agents_rs/`（当前为 `coding` 角色）。
@@ -10,7 +10,7 @@ Rust 实现位于 `airymax_agents_rs/`（当前为 `coding` 角色）。
 - **契约驱动**：每个 Agent 遵循 [`01-agent-contract.md`](https://gitcode.com/openairymax/docs/blob/main/AirymaxRT/20-modules/10-contracts/01-agent-contract.md) 规范（schema_version / agent_id / capabilities / models / required_permissions / cost_profile / trust_metrics），`contract.json` 是 Agent 与运行时之间的唯一可信接口
 - **零样板**：`AirymaxAgent` 基类通过 `__module__` 自动定位子类源文件目录，自动装配契约与提示词，子类只需声明 `ROLE`
 - **可独立运行**：无 `OPENAI_API_KEY` 时自动启用 `MockLLMClient`（确定性响应），便于 CI 与本地开发；配置 `OPENAI_API_KEY`（及可选 `OPENAI_BASE_URL`）后切换真实 LLM
-- **分层清晰**：本包仅依赖 `openlab`（`LLMAgent` + `LLMClient`），不耦合 `manager` / `skills` / 运行时基础设施
+- **分层清晰**：本包依赖同仓 `orchestration/`（`LLMAgent` + `LLMClient`），不耦合 `manager` / `skills` / 运行时基础设施
 
 ## 包含的 Agent
 
@@ -24,14 +24,20 @@ Rust 实现位于 `airymax_agents_rs/`（当前为 `coding` 角色）。
 | `security` | `SecurityAgent` | 安全审计、漏洞扫描、威胁建模 |
 | `tester` | `TesterAgent` | 测试用例生成、测试执行、覆盖率分析 |
 | `coding` | `CodingAgent` | 代码生成、解释、重构（Python + Rust 双实现，均接入 LLM） |
+| `data_engineer` | `DataEngineerAgent` | 数据处理、ETL 管道、数据建模 |
+| `reviewer` | `ReviewerAgent` | 代码评审、最佳实践建议、重构建议 |
+| `analyst` | `AnalystAgent` | 数据分析、趋势检测、可视化报告 |
+
+> 角色清单的运行时权威为 `airymax_agents/__init__.py` 的 `AGENT_REGISTRY`；
+> 执行体注册表见 `registry/agents.yaml`（coordinator / custom_template 仍为规划中）。
 
 ## 目录结构
 
 ```
 agents/
 ├── README.md
-├── airymax_agents/                # Python 实现（8 角色）
-│   ├── __init__.py            # 统一导出 + get_agent() 工厂
+├── airymax_agents/                # Python 实现（11 角色）
+│   ├── __init__.py            # 统一导出 + get_agent() 工厂 + AGENT_REGISTRY（角色 SSoT）
 │   ├── base.py                # AirymaxAgent 基类 (自动加载契约+提示词)
 │   ├── product_manager/
 │   │   ├── __init__.py
@@ -44,7 +50,17 @@ agents/
 │   ├── devops/...
 │   ├── security/...
 │   ├── tester/...
-│   └── coding/                   # CodingAgent (Python)
+│   ├── coding/                   # CodingAgent (Python)
+│   ├── data_engineer/...
+│   ├── reviewer/...
+│   └── analyst/...
+├── orchestration/                # 多智能体编排内核（v0.1.1，AirymaxAgent 基座）
+│   ├── core/                     # Agent / Task / Tool / Storage / LLM 抽象
+│   ├── agents/                   # LLMAgent 执行体基类
+│   ├── strategies/               # 调度 / 规划策略
+│   ├── protocols/  utils/        # 协议与通用工具
+│   ├── config.yaml  run.sh  requirements.txt
+│   └── README.md
 ├── airymax_agents_rs/             # Rust 实现（cargo workspace）
 │   └── crates/
 │       ├── agent-core/            # 核心 trait / LLM 客户端 / 错误类型
@@ -55,7 +71,7 @@ agents/
 │   └── agents.yaml              # 执行体注册表（运行时单一可信源）
 ├── shared/
 │   └── contracts/
-│       └── agent.schema.json    # 契约 JSON Schema
+│       └── agent.schema.json    # 契约 JSON Schema（权威）
 ├── tests/                        # pytest 套件（含基准测试）
 └── examples/
     └── run_pm.py              # 端到端示例
@@ -65,13 +81,13 @@ agents/
 
 ### 前置条件
 
-依赖 `openlab` 包 (位于 `ecosystem/openlab/`)，需在 `PYTHONPATH` 上。
+依赖同仓 `orchestration/` 包（`LLMAgent` + `LLMClient`），需在 `PYTHONPATH` 上。
 
 ### 端到端示例
 
 ```bash
 cd airymaxhub/ecosystem/agents
-python3 examples/run_pm.py
+PYTHONPATH=. python3 examples/run_pm.py
 ```
 
 无 `OPENAI_API_KEY` 时自动启用 Mock 模式，输出确定性响应验证流程；
@@ -82,7 +98,7 @@ python3 examples/run_pm.py
 ```python
 import asyncio
 from airymax_agents import get_agent
-from openlab.core.agent import AgentContext
+from orchestration.core.agent import AgentContext
 
 async def main():
     agent = get_agent("product_manager")
@@ -98,7 +114,7 @@ asyncio.run(main())
 
 ```python
 from airymax_agents import get_agent
-from openlab.core.agent import AgentContext, Message
+from orchestration.core.agent import AgentContext, Message
 
 pm = get_agent("product_manager")
 arch = get_agent("architect")
