@@ -17,8 +17,10 @@
     ▼
    返回最终 content → TaskResult
 
-工具调用最大 5 轮，避免无限循环。契约遵循 ``01-agent-contract.md``：
-``models.system2`` 用于深度思考 (t2)，``system1`` 用于快思考 (t1-f)。
+工具调用最大 16 轮，避免无限循环（loop-hint 连续重复 3 次注入警告、
+4 次强制终止；60% 轮数时注入一次性收敛提示）。契约遵循
+``01-agent-contract.md``：``models.system2`` 用于深度思考 (t2)，
+``system1`` 用于快思考 (t1-f)。
 """
 
 from __future__ import annotations
@@ -54,9 +56,11 @@ DEFAULT_MODEL_SYSTEM1 = ""
 # 简单任务判定阈值（≤ 此字符数的输入走 system1 快思考）
 SIMPLE_TASK_MAX_CHARS = 600
 # 工具回路最大轮数，防止 LLM 反复调用工具
-# （8 轮：write->run->verify 的多步任务留出余量；loop-hint 在连续重复
-#  3 次注入警告、4 次强制终止，仍能防死循环，见 execute() 内 loop 保护）
-MAX_TOOL_ROUNDS = 8
+# （16 轮：多步任务如"写→读→改→复核→删→glob 确认"每轮单工具也留足余量；
+#  loop-hint 在连续重复 3 次注入警告、4 次强制终止，仍能防死循环，
+#  硬上限只是兜底，见 execute() 内 loop 保护。q8i 实测 8 轮不足以完成
+#  六步文件增删改查闭环，LLM 每轮通常只调一个工具）
+MAX_TOOL_ROUNDS = 16
 # 单次工具结果回灌 LLM 上下文的上限（参照 Atom Code 64KiB 上限；防止大文件读取污染窗口）
 MAX_TOOL_RESULT_CHARS = 64 * 1024
 
@@ -162,6 +166,9 @@ class LLMAgent(Agent):
 
         started = time.time()
         rounds = 0
+        # 中途收敛提示按单次 execute 计数（runner 主循环复用 agent 处理
+        # 多个请求，标志须在每次执行时重置，避免跨任务误跳提示）。
+        self._mid_progress_hinted = False
         model = self._select_model(input_data)
         tool_defs = self._build_tool_definitions()
 
@@ -207,6 +214,19 @@ class LLMAgent(Agent):
                 # 消息（中间不得插入 system 等其它 role），因此 loop-hint 在全部
                 # tool 消息追加完成后统一注入。
                 loop_hint = None
+                # 中途收敛提示（q8i 生产实测）：模型可能在"不同参数/不同工具"间
+                # 空转（指纹不同，不触发上面的连续重复检测）直至硬上限。到
+                # MAX_TOOL_ROUNDS 的 60% 仍未收尾时注入一次性收敛提醒，引导
+                # 模型停止无进展重试、基于已有工具结果给出结论。
+                if rounds >= int(MAX_TOOL_ROUNDS * 0.6) and not getattr(
+                    self, "_mid_progress_hinted", False
+                ):
+                    loop_hint = (
+                        f"[progress-hint] 已执行 {rounds} 轮工具调用。若任务关键步骤"
+                        "已完成，请停止继续调用工具，基于已有结果给出最终结论；"
+                        "若某次调用持续失败，请更换策略而非重试同一思路。"
+                    )
+                    self._mid_progress_hinted = True
                 for tc in tool_calls:
                     fn = tc.get("function", {})
                     name = fn.get("name", "")

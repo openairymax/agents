@@ -263,6 +263,7 @@ BUILTIN_TOOL_IDS = (
     "fs_glob",
     "fs_grep",
     "fs_edit",
+    "fs_delete",
     "web_search",
 )
 
@@ -270,7 +271,7 @@ BUILTIN_TOOL_IDS = (
 def test_builtin_tools_registered_when_syscall_proxy_provided(
     mock_llm, mock_syscall_proxy
 ):
-    """注入 syscall_proxy 时，9 个 tool_d 内置工具应注册为 function-calling 工具。"""
+    """注入 syscall_proxy 时，10 个 tool_d 内置工具应注册为 function-calling 工具。"""
     agent = ProductManagerAgent(llm=mock_llm, syscall_proxy=mock_syscall_proxy)
     for tool_id in BUILTIN_TOOL_IDS:
         assert agent.get_tool(tool_id) is not None, f"{tool_id} not registered"
