@@ -41,5 +41,6 @@ airymax_agents = ["**/contract.json", "**/prompts/*.md"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v --tb=short"
+# -p no:cacheprovider：禁用 pytest 缓存，根治源码区 .pytest_cache 污染
+addopts = "-v --tb=short -p no:cacheprovider"
 asyncio_mode = "auto"
