@@ -1,13 +1,13 @@
 # Strategies — 调度与规划策略
 
 **模块路径**: `ecosystem/agents/orchestration/strategies/`
-**版本**: v0.1.1
+**版本**: v0.1.3
 
-> **Status**: 本模块作为 AgentRT 的正式组成部分，API 持续演进中。本模块通过 JSON-RPC 2.0 协议与 AgentRT 核心运行时集成。
+> **Status**: 本模块作为 AgentRT 平台生态的组成部分，API 持续演进中。
 
 ## 概述
 
-Strategies 是 Airymax 社区贡献的调度与规划策略集合，定义 Agent 协作的模式和任务编排方式。该模块包含两大策略：Dispatching（任务调度）和 Planning（任务规划），分别解决"任务分发给谁"和"任务如何分解"两个核心问题，共同构建多智能体协作的编排基础。
+Strategies 是 Airymax 的调度与规划策略集合，定义 Agent 协作的模式和任务编排方式。该模块包含两大策略：Dispatching（任务调度）和 Planning（任务规划），分别解决"任务分发给谁"和"任务如何分解"两个核心问题，共同构建多智能体协作的编排基础。
 
 ## 架构定位
 
@@ -39,12 +39,12 @@ Strategies 作为 Contributions 三大子模块之一，是 Agent 协作的编�
 strategies/
 ├── __init__.py                     # 策略包导出
 ├── dispatching/                    # 任务调度策略
-│   ├── __init__.py                 # 导出 DispatchingStrategy
-│   ├── dispatching.py              # DispatchingStrategy 核心实现
+│   ├── __init__.py                 # 导出 DispatchingStrategy 及具体策略
+│   ├── dispatching.py              # DispatchingStrategy 与 4 个具体策略实现
 │   └── README.md                   # Dispatching 详细文档
 ├── planning/                       # 任务规划策略
-│   ├── __init__.py                 # 导出 PlanningStrategy, PlanStep
-│   ├── planning.py                 # PlanningStrategy/PlanStep 核心实现
+│   ├── __init__.py                 # 导出 PlanningStrategy / Planner 系列 / DAG
+│   ├── planning.py                 # 规划策略与 TaskDAG 核心实现
 │   └── README.md                   # Planning 详细文档
 └── README.md                       # 本文件
 ```
@@ -53,8 +53,8 @@ strategies/
 
 | Strategy | 路径 | 核心问题 | 核心类 |
 |----------|------|----------|--------|
-| **Dispatching** | `dispatching/` | 任务分发给谁 | `DispatchingStrategy` |
-| **Planning** | `planning/` | 任务如何分解 | `PlanningStrategy`、`PlanStep` |
+| **Dispatching** | `dispatching/` | 任务分发给谁 | `DispatchingStrategy`、`WeightedRoundRobinStrategy`、`PriorityBasedStrategy`、`LeastLoadedStrategy`、`AdaptiveMLStrategy` |
+| **Planning** | `planning/` | 任务如何分解 | `PlanningStrategy`、`HierarchicalPlanner`、`ReactivePlanner`、`ReflectivePlanner`、`TaskDAG`、`PlanStep` |
 
 ## 策略体系
 
@@ -66,9 +66,18 @@ strategies/
 
 ```python
 class DispatchingStrategy:
+    name: str = "dispatching"
+
     def __init__(self, config: Optional[Dict[str, Any]] = None)
 
-    async def dispatch(self, task: Any, agents: list = None) -> Dict[str, Any]:
+    def select(self, candidates: List[AgentMetrics],
+               context: Optional[TaskContext] = None) -> Optional[AgentMetrics]:
+        """从候选 Agent 指标中选择最合适的一个"""
+
+    def get_stats(self) -> Dict[str, Any]:
+        """返回策略统计信息"""
+
+    async def dispatch(self, task: Any, agents: Optional[List[Any]] = None) -> Dict[str, Any]:
         """分发任务到合适的 Agent
 
         Args:
@@ -76,21 +85,22 @@ class DispatchingStrategy:
             agents: 可用 Agent 列表
 
         Returns:
-            Dict: 包含 status/strategy/assigned_agents/task 信息
+            Dict: 包含 status / strategy / task_id / task_type /
+                  assigned_agents / candidates / dispatch_count /
+                  selected / reason 字段
         """
 ```
 
-#### 支持的调度策略
+#### 内置调度策略
 
-| 策略 | 说明 | 适用场景 |
-|------|------|----------|
-| 轮询调度 (Round Robin) | 依次分配给可用 Agent | 各 Agent 能力相同 |
-| 能力匹配 (Capability Match) | 按能力匹配度分配 | 专业化 Agent 集群 |
-| 最短队列 (Shortest Queue) | 分配给等待队列最短的 Agent | 高负载场景 |
-| 加权分配 (Weighted) | 按权重比例分配 | 异构 Agent 集群 |
-| 随机分配 (Random) | 随机选择 Agent | 负载测试 |
+| 策略类 | 说明 | 适用场景 |
+|--------|------|----------|
+| `WeightedRoundRobinStrategy` | 加权轮询，按权重比例依次分配 | 异构 Agent 集群 |
+| `PriorityBasedStrategy` | 优先级优先，优先分配给高优先级 Agent | 分级执行体 |
+| `LeastLoadedStrategy` | 最小负载，分配给当前负载最低的 Agent | 高负载场景 |
+| `AdaptiveMLStrategy` | 自适应评分，综合响应时间 / 成功率等指标动态打分 | 生产环境长期运行 |
 
-> 详细接口和配置请参阅 `dispatching/README.md`。
+> 详细接口和数据结构（`AgentMetrics` / `TaskContext`）请参阅 `dispatching/README.md`。
 
 ### Planning — 任务规划策略
 
@@ -109,14 +119,16 @@ class PlanStep:
 class PlanningStrategy:
     def __init__(self, config: Optional[Dict[str, Any]] = None)
 
-    async def plan(self, task: Any) -> Dict[str, Any]:
+    async def plan(self, task: Any,
+                   context: Optional[PlanningContext] = None) -> Dict[str, Any]:
         """将任务分解为执行计划
 
         Args:
             task: 任务对象（dict 或其他类型）
+            context: 可选规划上下文
 
         Returns:
-            Dict: 包含 status/strategy/task/steps 信息
+            Dict: 包含 status / strategy / task / dependencies / steps 字段
         """
 ```
 
@@ -127,6 +139,17 @@ class PlanningStrategy:
     ↓          ↓          ↓          ↓          ↓          ↓
  用户需求   子任务列表   DAG 图    资源分配   时间线    执行引擎
 ```
+
+#### 规划器与基础设施
+
+| 类 | 说明 |
+|----|------|
+| `PlanningStrategy` | 启发式任务分解规划器（默认实现） |
+| `HierarchicalPlanner` | 分层规划器，可接入 OpenAI 兼容 LLM 客户端，调用失败时退化为启发式分解 |
+| `ReactivePlanner` | 反应式规划器，验证目标可解性 |
+| `ReflectivePlanner` | 反思式规划器，基于执行反馈改进计划 |
+| `TaskDAG` | 任务依赖图，支持拓扑分层（`get_execution_order`）、就绪任务获取（`get_ready_tasks`）与环检测（`validate`） |
+| `TaskNode` / `PlanningContext` | DAG 节点与规划上下文数据类 |
 
 #### PlanStep 数据结构
 
@@ -169,15 +192,15 @@ for step in plan["steps"]:
 ### 单独使用 Dispatching
 
 ```python
-from orchestration.strategies.dispatching import DispatchingStrategy
+from orchestration.strategies.dispatching import WeightedRoundRobinStrategy
 
-dispatcher = DispatchingStrategy(strategy="capability_match")
+dispatcher = WeightedRoundRobinStrategy()
 
 task = {
     "id": "task-001",
     "type": "code_review",
     "priority": "high",
-    "payload": {"repo": "agentrt", "branch": "main"}
+    "payload": {"repo": "airymax", "branch": "main"}
 }
 
 result = await dispatcher.dispatch(task, agents=available_agents)
@@ -208,7 +231,7 @@ for step in plan["steps"]:
 
 ## 开发指南
 
-### 创建新的社区策略
+### 创建新的策略
 
 1. 在 `orchestration/strategies/` 下创建新目录（使用小写字母）
 2. 实现策略核心类，提供标准化的异步接口
@@ -231,12 +254,12 @@ for step in plan["steps"]:
 | **ecosystem/agents/** | Dispatching 策略将任务分配给 Agent；Planning 策略在 PlanStep 中指定 `assigned_agent` |
 | **ecosystem/skills/** | Strategies 根据 Agent 拥有的 Skills 进行能力匹配调度 |
 | **orchestration/core/** | Strategies 与 Core 的 TaskScheduler 协同工作，实现任务的调度和编排 |
-| **app/** | 应用层使用 Strategies 编排多 Agent 协作流程 |
+| **Agent 应用** | 应用层使用 Strategies 编排多 Agent 协作流程 |
 
 ## 依赖关系
 
 - **核心依赖**: Python >= 3.10, orchestration.core, typing, dataclasses
-- **协议依赖**: AgentRT protocols 层（JSON-RPC 2.0）
+- **无外部运行时依赖**: 核心实现仅使用 Python 标准库
 
 ---
 

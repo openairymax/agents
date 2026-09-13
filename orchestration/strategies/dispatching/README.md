@@ -1,48 +1,53 @@
 # Dispatching — 任务调度策略
 
 **模块路径**: `ecosystem/agents/orchestration/strategies/dispatching/`
-**版本**: v0.1.1
+**版本**: v0.1.3
 
-> **Status**: 本模块作为 AgentRT 的正式组成部分，API 持续演进中。本模块通过 JSON-RPC 2.0 协议与 AgentRT 核心运行时集成。
+> **Status**: 本模块作为 AgentRT 平台生态的组成部分，API 持续演进中。
 
 ## 概述
 
-Dispatching 策略模块提供智能体的任务调度能力，负责将任务高效地分发给最合适的执行者。当前实现为贡献骨架（Contrib Skeleton），提供基础调度接口，支持根据不同策略进行任务分配。
+Dispatching 策略模块提供智能体的任务调度能力，负责将任务高效地分发给最合适的执行者。模块提供 `DispatchingStrategy` 基类与 4 个内置具体策略，均基于 `AgentMetrics` 指标进行选择决策。
 
 ## 目录结构
 
 ```
 dispatching/
 ├── __init__.py                 # 模块导出
-├── dispatching.py              # DispatchingStrategy 核心实现
+├── dispatching.py              # DispatchingStrategy 与 4 个具体策略实现
 └── README.md                   # 本文件
 ```
 
 ## 核心组件
 
-### DispatchingStrategy (`dispatching.py`)
+### 类一览 (`dispatching.py`)
 
 | 类 | 说明 |
 |----|------|
-| `DispatchingStrategy` | 调度策略基类，接受 config 配置，提供 `dispatch()` 方法 |
-
-## 调度策略
-
-| 策略 | 说明 | 适用场景 |
-|------|------|----------|
-| 轮询调度 (Round Robin) | 依次分配给可用 Agent | 各 Agent 能力相同 |
-| 能力匹配 (Capability Match) | 按能力匹配度分配 | 专业化 Agent 集群 |
-| 最短队列 (Shortest Queue) | 分配给等待队列最短的 Agent | 高负载场景 |
-| 加权分配 (Weighted) | 按权重比例分配 | 异构 Agent 集群 |
-| 随机分配 (Random) | 随机选择 Agent | 负载测试 |
+| `DispatchingStrategy` | 调度策略基类，提供 `select()` / `dispatch()` / `get_stats()` 标准接口 |
+| `WeightedRoundRobinStrategy` | 加权轮询策略，按权重比例依次分配 |
+| `PriorityBasedStrategy` | 优先级优先策略，优先分配给高优先级 Agent |
+| `LeastLoadedStrategy` | 最小负载策略，分配给当前负载最低的 Agent |
+| `AdaptiveMLStrategy` | 自适应评分策略，综合响应时间 / 成功率等指标动态打分 |
+| `AgentMetrics` | Agent 运行指标数据类：agent_id / weight / current_load / avg_response_time / success_rate / priority / capabilities |
+| `TaskContext` | 任务上下文数据类，供选择决策使用 |
 
 ## 接口说明
 
 ```python
 class DispatchingStrategy:
+    name: str = "dispatching"
+
     def __init__(self, config: Optional[Dict[str, Any]] = None)
 
-    async def dispatch(self, task: Any, agents: list = None) -> Dict[str, Any]:
+    def select(self, candidates: List[AgentMetrics],
+               context: Optional[TaskContext] = None) -> Optional[AgentMetrics]:
+        """从候选 Agent 指标中选择最合适的一个"""
+
+    def get_stats(self) -> Dict[str, Any]:
+        """返回策略统计信息"""
+
+    async def dispatch(self, task: Any, agents: Optional[List[Any]] = None) -> Dict[str, Any]:
         """分发任务到合适的 Agent
 
         Args:
@@ -50,9 +55,20 @@ class DispatchingStrategy:
             agents: 可用 Agent 列表
 
         Returns:
-            Dict: 包含 status/strategy/assigned_agents/task 信息
+            Dict: 包含 status / strategy / task_id / task_type /
+                  assigned_agents / candidates / dispatch_count /
+                  selected / reason 字段
         """
 ```
+
+## 内置策略
+
+| 策略类 | 说明 | 适用场景 |
+|--------|------|----------|
+| `WeightedRoundRobinStrategy` | 加权轮询，按权重比例依次分配 | 异构 Agent 集群 |
+| `PriorityBasedStrategy` | 优先级优先，优先分配给高优先级 Agent | 分级执行体 |
+| `LeastLoadedStrategy` | 最小负载，分配给当前负载最低的 Agent | 高负载场景 |
+| `AdaptiveMLStrategy` | 自适应评分，综合多项指标动态决策 | 生产环境长期运行 |
 
 ## 依赖关系
 
@@ -62,15 +78,15 @@ class DispatchingStrategy:
 ## 使用示例
 
 ```python
-from orchestration.strategies.dispatching import DispatchingStrategy
+from orchestration.strategies.dispatching import LeastLoadedStrategy
 
-dispatcher = DispatchingStrategy(strategy="capability_match")
+dispatcher = LeastLoadedStrategy()
 
 task = {
     "id": "task-001",
     "type": "code_review",
     "priority": "high",
-    "payload": {"repo": "agentrt", "branch": "main"}
+    "payload": {"repo": "airymax", "branch": "main"}
 }
 
 result = await dispatcher.dispatch(task, agents=available_agents)

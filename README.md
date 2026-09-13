@@ -1,13 +1,13 @@
 # Airymax Agents
 
 Airymax 内置 Agent 执行体集合 — 11 个开箱即用、遵循
-[`01-agent-contract.md`](https://gitcode.com/openairymax/docs/blob/main/AirymaxRT/20-modules/10-contracts/01-agent-contract.md)
+[智能体契约 Schema](shared/contracts/agent.schema.json)
 的智能体，覆盖软件交付全链路。Python 实现位于 `airymax_agents/`，
 Rust 实现位于 `airymax_agents_rs/`（当前为 `coding` 角色）。
 
 ## 设计原则
 
-- **契约驱动**：每个 Agent 遵循 [`01-agent-contract.md`](https://gitcode.com/openairymax/docs/blob/main/AirymaxRT/20-modules/10-contracts/01-agent-contract.md) 规范（schema_version / agent_id / capabilities / models / required_permissions / cost_profile / trust_metrics），`contract.json` 是 Agent 与运行时之间的唯一可信接口
+- **契约驱动**：每个 Agent 遵循 [`shared/contracts/agent.schema.json`](shared/contracts/agent.schema.json) 契约规范 v1.0.0（schema_version / agent_id / role / capabilities / models / required_permissions / cost_profile / trust_metrics），`contract.json` 是 Agent 与运行时之间的唯一可信接口
 - **零样板**：`AirymaxAgent` 基类通过 `__module__` 自动定位子类源文件目录，自动装配契约与提示词，子类只需声明 `ROLE`
 - **可独立运行**：无 `OPENAI_API_KEY` 时自动启用 `MockLLMClient`（确定性响应），便于 CI 与本地开发；配置 `OPENAI_API_KEY`（及可选 `OPENAI_BASE_URL`）后切换真实 LLM
 - **分层清晰**：本包依赖同仓 `orchestration/`（`LLMAgent` + `LLMClient`），不耦合 `manager` / `skills` / 运行时基础设施
@@ -54,11 +54,12 @@ agents/
 │   ├── data_engineer/...
 │   ├── reviewer/...
 │   └── analyst/...
-├── orchestration/                # 多智能体编排内核（v0.1.1，AirymaxAgent 基座）
+├── orchestration/                # 多智能体编排内核（v0.1.3，AirymaxAgent 基座）
 │   ├── core/                     # Agent / Task / Tool / Storage / LLM 抽象
 │   ├── agents/                   # LLMAgent 执行体基类
 │   ├── strategies/               # 调度 / 规划策略
-│   ├── protocols/  utils/        # 协议与通用工具
+│   ├── protocols/                # 预留协议扩展点（当前为空包）
+│   ├── utils/                    # 通用工具（异常 / 日志）
 │   ├── config.yaml  run.sh  requirements.txt
 │   └── README.md
 ├── airymax_agents_rs/             # Rust 实现（cargo workspace）
@@ -137,7 +138,7 @@ arch_reply = await arch.handle_message(msg)
 - `agent_id`: 全局唯一标识 (`<role>_v1`，如 `product_manager_v1`)
 - `role`: 角色分类
 - `capabilities[]`: 能力列表 (含 input/output JSON Schema)
-- `models`: Thinkdual 双思考模型配置 (`system1` t1-f 快思考 + `system2` t2 主思考)
+- `models`: 思考模型配置 (`system1` 快思考 + `system2` 主思考)
 - `required_permissions[]`: 所需权限 (最小权限原则)
 - `cost_profile`: 成本预估
 - `trust_metrics`: 信任指标
