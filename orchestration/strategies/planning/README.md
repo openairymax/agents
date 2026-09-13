@@ -1,31 +1,37 @@
 # Planning — 任务规划策略
 
 **模块路径**: `ecosystem/agents/orchestration/strategies/planning/`
-**版本**: v0.1.1
+**版本**: v0.1.3
 
-> **Status**: 本模块作为 AgentRT 的正式组成部分，API 持续演进中。本模块通过 JSON-RPC 2.0 协议与 AgentRT 核心运行时集成。
+> **Status**: 本模块作为 AgentRT 平台生态的组成部分，API 持续演进中。
 
 ## 概述
 
-Planning 策略模块提供智能体的任务规划能力，负责将复杂目标分解为可执行的步骤序列。当前实现为贡献骨架（Contrib Skeleton），提供基础规划接口，支持目标分解、依赖分析和计划生成。
+Planning 策略模块提供智能体的任务规划能力，负责将复杂目标分解为可执行的步骤序列。模块提供启发式 `PlanningStrategy`（默认实现）与 3 个进阶规划器，并内置 `TaskDAG` 任务依赖图基础设施（拓扑排序 / 就绪任务 / 环检测）。
 
 ## 目录结构
 
 ```
 planning/
 ├── __init__.py                 # 模块导出
-├── planning.py                 # PlanningStrategy/PlanStep 核心实现
+├── planning.py                 # 规划策略与 TaskDAG 核心实现
 └── README.md                   # 本文件
 ```
 
 ## 核心组件
 
-### PlanningStrategy (`planning.py`)
+### 类一览 (`planning.py`)
 
 | 类 | 说明 |
 |----|------|
-| `PlanningStrategy` | 规划策略类，接受 config 配置，提供 `plan()` 方法 |
-| `PlanStep` | 计划步骤数据类，包含 step_id/description/dependencies/assigned_agent |
+| `PlanningStrategy` | 启发式任务分解规划器（默认实现），提供 `plan()` 方法 |
+| `HierarchicalPlanner` | 分层规划器，可接入 OpenAI 兼容 LLM 客户端，调用失败时退化为启发式分解 |
+| `ReactivePlanner` | 反应式规划器，验证目标可解性 |
+| `ReflectivePlanner` | 反思式规划器，基于执行反馈改进计划 |
+| `TaskDAG` | 任务依赖图：`get_execution_order()` 拓扑分层 / `get_ready_tasks()` 就绪任务 / `validate()` 环检测 |
+| `TaskNode` | DAG 节点数据类 |
+| `PlanningContext` | 规划上下文数据类 |
+| `PlanStep` | 计划步骤数据类：step_id / description / dependencies / assigned_agent |
 
 ## 规划流程
 
@@ -48,14 +54,16 @@ class PlanStep:
 class PlanningStrategy:
     def __init__(self, config: Optional[Dict[str, Any]] = None)
 
-    async def plan(self, task: Any) -> Dict[str, Any]:
+    async def plan(self, task: Any,
+                   context: Optional[PlanningContext] = None) -> Dict[str, Any]:
         """将任务分解为执行计划
 
         Args:
             task: 任务对象（dict 或其他类型）
+            context: 可选规划上下文
 
         Returns:
-            Dict: 包含 status/strategy/task/steps 信息
+            Dict: 包含 status / strategy / task / dependencies / steps 字段
         """
 ```
 
