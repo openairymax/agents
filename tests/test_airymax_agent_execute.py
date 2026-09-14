@@ -15,7 +15,7 @@
 - 契约与系统提示词从子类目录自动加载
 - ``get_agent`` 工厂与 ``AGENT_REGISTRY`` 行为
 
-对齐 ``docs-closed/agentrt/01-designs/airymax-agent-standard.md`` §5.2
+对齐 ``airymax-agent-standard.md`` §5.2
 持久化协议与 §10 验证清单 "AirymaxAgent.execute 持久化 best-effort 行为有测试覆盖"。
 """
 

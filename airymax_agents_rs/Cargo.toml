@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later OR Apache-2.0
 #
 # Airymax Rust Agent workspace root.
-# See docs-closed/agentrt/01-designs/airymax-agent-standard.md §9.
+# See airymax-agent-standard.md §9.
 
 [workspace]
 resolver = "2"
