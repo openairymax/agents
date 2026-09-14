@@ -3,7 +3,7 @@
 //! Airymax Agent core: trait + context + status + error types.
 //!
 //! 与 Python `airymax_agents/base.py::AirymaxAgent` 对齐
-//! （见 docs-closed/agentrt/01-designs/airymax-agent-standard.md §3, §9）。
+//! （见 airymax-agent-standard.md §3, §9）。
 
 pub mod agent;
 pub mod context;
