@@ -323,3 +323,63 @@ def test_builtin_tool_schemas_required_aligned_with_tool_d():
             assert field in params["properties"], (
                 f"{tool_id}.{field} required but not declared"
             )
+
+
+# ── C-2 角色词汇表 SSoT：runner 限权归一化 ───────────────────
+
+
+def test_canonical_role_local_fallback():
+    """本地回退路径：具体角色恒等、别名归一化、未知兜底。"""
+    from airymax_agents import runner
+
+    assert runner._canonical_role("coding") == "coding"
+    assert runner._canonical_role("validator") == "tester"
+    assert runner._canonical_role("verifier") == "tester"
+    assert runner._canonical_role("executor") == "devops"
+    assert runner._canonical_role("retriever") == "architect"
+    assert runner._canonical_role("summarizer") == "product_manager"
+    assert runner._canonical_role("no-such-role") == "coding"
+
+
+def test_apply_role_tool_limits_normalizes_alias():
+    """抽象别名直传必须命中只读隔离（validator/verifier 漏网回归）。"""
+    from airymax_agents import runner
+
+    agent = SimpleNamespace(_tools={"fs_read": 1, "fs_write": 1, "shell_run": 1},
+                            _tool_schemas={"fs_read": {}, "fs_write": {}, "shell_run": {}})
+    runner._apply_role_tool_limits(agent, "validator")
+    assert "fs_write" not in agent._tools
+    assert "shell_run" not in agent._tool_schemas
+    assert "fs_read" in agent._tools
+
+    agent_rw = SimpleNamespace(_tools={"fs_write": 1}, _tool_schemas={})
+    runner._apply_role_tool_limits(agent_rw, "coding")
+    assert "fs_write" in agent_rw._tools
+
+
+def test_load_role_vocab_remote_overrides(monkeypatch):
+    """A-IPC 词汇加载成功时覆盖本地判定；失败时保持本地回退。"""
+    from airymax_agents import runner
+
+    remote = {
+        "fallback": "coding",
+        "roles": ["tester", "reviewer", "coding"],
+        "aliases": [{"alias": "validator", "role": "tester"}],
+        "readonly": ["tester"],
+    }
+    proxy = SimpleNamespace(agent_vocab=lambda: remote)
+    runner._load_role_vocab(proxy)
+    assert runner._ROLE_VOCAB == remote
+    assert runner._canonical_role("validator") == "tester"
+    assert runner._readonly_roles() == frozenset({"tester"})
+
+    class _Boom:
+        def agent_vocab(self):
+            raise RuntimeError("down")
+
+    runner._load_role_vocab(_Boom())
+    assert runner._ROLE_VOCAB == remote  # 失败保留远端态；无远端态时本地回退
+
+    runner._ROLE_VOCAB = None
+    assert runner._canonical_role("validator") == "tester"
+    assert "reviewer" in runner._readonly_roles()
