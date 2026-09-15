@@ -119,7 +119,7 @@
   ],
   "models": {
     "system1": "",
-    "system2": "deepseek-v4-flash"
+    "system2": "deepseek-flash"
   },
   "required_permissions": [
     "read_project_context",
