@@ -247,6 +247,22 @@ def _default_base_url(provider: Optional[str] = None) -> str:
     return "https://api.openai.com/v1"
 
 
+def _resolve_max_tokens(explicit: Optional[int] = None) -> Optional[int]:
+    """统一输出上限解析：显式参数 > ``$AIRY_LLM_MAX_TOKENS``（正整数）> None。
+
+    None 表示不发送 max_tokens（沿用厂商默认）。厂商默认输出上限会截断
+    长生成（大文件 fs_write 的 tool_call arguments JSON 半截失败），
+    部署方经该变量显式抬高上限；截断兜底由 LLMAgent 的 finish_reason
+    检测 fast-fail 承担（见 orchestration/agents/llm.py）。
+    """
+    if explicit and explicit > 0:
+        return explicit
+    env = os.environ.get("AIRY_LLM_MAX_TOKENS", "").strip()
+    if env.isdigit() and int(env) > 0:
+        return int(env)
+    return None
+
+
 def _resolve_base_url(explicit: Optional[str] = None, provider: Optional[str] = None) -> str:
     """统一 base_url 解析。
 
@@ -296,6 +312,7 @@ class LLMClient:
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: str = "auto",
         temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
     ) -> Dict[str, Any]:
         """调用 ``POST {base_url}/chat/completions``，返回 OpenAI 响应 dict。
 
@@ -309,17 +326,24 @@ class LLMClient:
                   "tool_calls": [{"id","type":"function",
                                   "function":{"name","arguments"}}] | None
                 },
-                "finish_reason": "stop" | "tool_calls"
+                "finish_reason": "stop" | "tool_calls" | "length"
               }],
               "usage": {"prompt_tokens","completion_tokens","total_tokens"},
               "model": "..."
             }
+
+        ``max_tokens``：输出上限（显式参数 > ``$AIRY_LLM_MAX_TOKENS`` > 不发送）。
+        不发送时沿用厂商默认，长生成可能被截断（finish_reason=length），
+        调用方必须检查 finish_reason 而非假定响应完整。
         """
         payload: Dict[str, Any] = {
             "model": model or self.default_model,
             "messages": messages,
             "temperature": temperature,
         }
+        resolved_max_tokens = _resolve_max_tokens(max_tokens)
+        if resolved_max_tokens:
+            payload["max_tokens"] = resolved_max_tokens
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = tool_choice

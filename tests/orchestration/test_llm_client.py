@@ -1,9 +1,10 @@
 # Copyright (c) 2026 SPHARX. All Rights Reserved.
-"""LLM 客户端统一 key/base_url 解析单测。
+"""LLM 客户端统一 key/base_url/max_tokens 解析单测。
 
 覆盖 ``orchestration/core/llm.py`` 的变量名映射 SSoT：
   - ``_resolve_api_key``    : OPENAI_API_KEY → DEEPSEEK_API_KEY → ANTHROPIC_API_KEY
   - ``_resolve_base_url``   : AIRY_LLM_BASE_URL → OPENAI_BASE_URL → 官方默认
+  - ``_resolve_max_tokens`` : 显式参数 → AIRY_LLM_MAX_TOKENS → 不发送
   - ``make_llm_client``     : 任一兼容 key 存在即真实客户端，否则 mock
 
 与 ecosystem/manager/model/model.yaml 的 providers[].api_key_env
@@ -12,7 +13,11 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import os
+import sys
+import types
 
 import pytest
 
@@ -21,6 +26,7 @@ from orchestration.core.llm import (
     MockLLMClient,
     _resolve_api_key,
     _resolve_base_url,
+    _resolve_max_tokens,
     make_llm_client,
 )
 
@@ -147,3 +153,116 @@ class TestLLMClientInit:
     def test_init_strips_base_url_slash(self):
         client = LLMClient(api_key="k", base_url="https://example.com/v1/")
         assert client.base_url == "https://example.com/v1"
+
+
+class TestResolveMaxTokens:
+    """统一输出上限解析：显式参数 > AIRY_LLM_MAX_TOKENS > 不发送。"""
+
+    def test_default_none(self, monkeypatch):
+        monkeypatch.delenv("AIRY_LLM_MAX_TOKENS", raising=False)
+        assert _resolve_max_tokens() is None
+
+    def test_env_positive(self, monkeypatch):
+        monkeypatch.delenv("AIRY_LLM_MAX_TOKENS", raising=False)
+        monkeypatch.setenv("AIRY_LLM_MAX_TOKENS", "16384")
+        assert _resolve_max_tokens() == 16384
+
+    def test_env_invalid_returns_none(self, monkeypatch):
+        monkeypatch.setenv("AIRY_LLM_MAX_TOKENS", "abc")
+        assert _resolve_max_tokens() is None
+        monkeypatch.setenv("AIRY_LLM_MAX_TOKENS", "0")
+        assert _resolve_max_tokens() is None
+        monkeypatch.setenv("AIRY_LLM_MAX_TOKENS", "  ")
+        assert _resolve_max_tokens() is None
+
+    def test_explicit_wins_over_env(self, monkeypatch):
+        monkeypatch.setenv("AIRY_LLM_MAX_TOKENS", "1024")
+        assert _resolve_max_tokens(4096) == 4096
+
+
+# chat() HTTP 路径捕获用的最小 OpenAI 响应体
+_CHAT_OK = json.dumps(
+    {
+        "choices": [
+            {"message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}
+        ],
+        "model": "scripted",
+        "usage": {"total_tokens": 1},
+    }
+)
+
+
+def _make_fake_aiohttp(captured: dict):
+    """构造注入 sys.modules 的 fake aiohttp，捕获 chat() 发出的请求。
+
+    chat() 内懒导入 ``import aiohttp``，故经 monkeypatch.setitem 注入
+    sys.modules 即可命中，无需真实网络。
+    """
+    fake = types.ModuleType("aiohttp")
+
+    class FakeClientTimeout:
+        def __init__(self, total=None):
+            self.total = total
+
+    class FakeResponse:
+        status = 200
+
+        async def text(self):
+            return _CHAT_OK
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+    class FakeSession:
+        def __init__(self, timeout=None):
+            captured["timeout"] = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        def post(self, url, json=None, headers=None):
+            captured["url"] = url
+            captured["json"] = json
+            captured["headers"] = headers
+            return FakeResponse()
+
+    fake.ClientTimeout = FakeClientTimeout
+    fake.ClientSession = FakeSession
+    return fake
+
+
+class TestChatPayload:
+    """chat() 请求 payload：max_tokens 按解析结果发送/省略。"""
+
+    def _run_chat(self, monkeypatch, captured, **kwargs):
+        monkeypatch.setitem(sys.modules, "aiohttp", _make_fake_aiohttp(captured))
+        client = LLMClient(api_key="k", base_url="https://llm.example/v1")
+        return asyncio.run(
+            client.chat(messages=[{"role": "user", "content": "hi"}], **kwargs)
+        )
+
+    def test_env_max_tokens_sent(self, monkeypatch):
+        captured: dict = {}
+        monkeypatch.setenv("AIRY_LLM_MAX_TOKENS", "16384")
+        self._run_chat(monkeypatch, captured)
+        assert captured["url"] == "https://llm.example/v1/chat/completions"
+        assert captured["json"]["max_tokens"] == 16384
+
+    def test_no_env_omits_max_tokens(self, monkeypatch):
+        """不发送 max_tokens 时沿用厂商默认（键不得出现）。"""
+        captured: dict = {}
+        monkeypatch.delenv("AIRY_LLM_MAX_TOKENS", raising=False)
+        self._run_chat(monkeypatch, captured)
+        assert "max_tokens" not in captured["json"]
+
+    def test_explicit_overrides_env(self, monkeypatch):
+        captured: dict = {}
+        monkeypatch.setenv("AIRY_LLM_MAX_TOKENS", "1024")
+        self._run_chat(monkeypatch, captured, max_tokens=4096)
+        assert captured["json"]["max_tokens"] == 4096
