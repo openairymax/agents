@@ -44,6 +44,12 @@ from typing import Any, Optional
 
 logger = logging.getLogger("runner")
 
+# Spawn-time cwd (the agent_d working directory): the baseline a request
+# without workspace_dir chdirs back to. The runner process is reused across
+# requests; without this reset the second task would silently run inside the
+# first task's workspace (cwd drift).
+_RUNNER_BASE_CWD = os.getcwd()
+
 # 内容级失败信号（防 L2 缓存中毒）：LLM 最终回复（无工具调用）被 orchestration
 # 无条件判为 success=True，即使内容明确表达「无法完成/工具被拒/推诿用户」。
 # 命中任一模式即把 execute 结果降级为失败，避免 agent_d 将失败回复原样
@@ -188,7 +194,8 @@ def main() -> int:
 
     logging.basicConfig(
         level=os.environ.get("AIRY_RUNNER_LOG_LEVEL", "WARNING"),
-        format="[runner %(levelname)s] %(message)s",
+        format="[%(asctime)s.%(msecs)03d %(levelname)s runner] %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
         stream=sys.stderr,
     )
 
@@ -244,27 +251,37 @@ def main() -> int:
             req = json.loads(line)
             agent_id = req.get("agent_id", "unknown")
             user_input = req.get("input", "")
-            # Decision E workspace isolation: when agent_d forwards an isolated
-            # workspace_dir (wh_agent_invoke -> agent.invoke -> child request),
-            # chdir into it so the agent acts inside the task workspace instead
-            # of the daemon's cwd (avoids tool-round exhaustion exploring the
-            # host tree). Directory missing is non-fatal (best-effort).
-            ws_dir = req.get("workspace_dir") or ""
-            if ws_dir:
-                try:
-                    os.chdir(ws_dir)
-                    logger.debug("runner chdir to workspace: %s", ws_dir)
-                except OSError as e:
-                    logger.warning("runner chdir to workspace %s failed: %s", ws_dir, e)
-            # 同步给 agent：工具 dispatch 把相对路径解析为 workspace 内的
-            # 绝对路径（tool_d fs_* 以自身 cwd 为基准，见 base.py）。
-            try:
-                agent.workspace_dir = ws_dir or None
-            except Exception as e:
-                logger.warning("set agent workspace_dir failed (non-fatal): %s", e)
         except (json.JSONDecodeError, AttributeError) as e:
             print(_make_response(success=False, error=f"bad request: {e}"), flush=True)
             continue
+
+        # Decision E workspace isolation: when agent_d forwards an isolated
+        # workspace_dir (wh_agent_invoke -> agent.invoke -> child request),
+        # chdir into it and only then expose it as agent.workspace_dir, so
+        # both the tool cwd base (tool_d fs_* resolve relative to the runner
+        # cwd) and the per-request cwd param point at a live directory.
+        # chdir failure fails THIS request fast: continuing would resolve
+        # every relative path against a stale cwd and burn the whole
+        # tool-round budget on [Errno 2] errors (incident 0.1.16).
+        # Requests without workspace_dir chdir back to the spawn-time cwd
+        # (_RUNNER_BASE_CWD) to undo the previous task's chdir — the runner
+        # process is reused across requests (cwd drift).
+        ws_dir = req.get("workspace_dir") or ""
+        if ws_dir:
+            try:
+                os.chdir(ws_dir)
+            except OSError as e:
+                logger.error("workspace_dir %s unavailable: %s", ws_dir, e)
+                print(
+                    _make_response(success=False, error=f"workspace_dir unavailable: {e}"),
+                    flush=True,
+                )
+                continue
+            agent.workspace_dir = ws_dir
+        else:
+            os.chdir(_RUNNER_BASE_CWD)
+            agent.workspace_dir = None
+        logger.debug("runner workspace: %s", agent.workspace_dir or _RUNNER_BASE_CWD)
 
         try:
             resp = asyncio.run(_execute_once(agent, agent_id, user_input))
