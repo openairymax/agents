@@ -17,10 +17,11 @@
     ▼
    返回最终 content → TaskResult
 
-工具调用最大 16 轮，避免无限循环（loop-hint 连续重复 3 次注入警告、
-4 次强制终止；60% 轮数时注入一次性收敛提示）。契约遵循
-``01-agent-contract.md``：``models.system2`` 用于深度思考 (t2)，
-``system1`` 用于快思考 (t1-f)。
+工具调用最大 16 轮，避免无限循环：同指纹连续重复 3 次注入警告、
+4 次强制终止；连败（参数/错误内容各不相同也计入）达阈值
+（默认 3，``AIRY_TOOL_FAIL_LIMIT`` 可调）立即熔断；60% 轮数时
+注入一次性收敛提示。契约遵循 ``01-agent-contract.md``：
+``models.system2`` 用于深度思考 (t2)，``system1`` 用于快思考 (t1-f)。
 """
 
 from __future__ import annotations
@@ -63,6 +64,33 @@ SIMPLE_TASK_MAX_CHARS = 600
 MAX_TOOL_ROUNDS = 16
 # 单次工具结果回灌 LLM 上下文的上限（参照 Atom Code 64KiB 上限；防止大文件读取污染窗口）
 MAX_TOOL_RESULT_CHARS = 64 * 1024
+# 连败熔断默认阈值：连续 N 次工具调用失败即终止。
+# q8i 生产实测：模型会在"不同参数/不同工具"间空转——每次失败内容都
+# 不同，同指纹重复检测不触发，只能烧完全部轮数预算。连败达阈值几乎
+# 必然是系统性故障（工具缺失/策略错误），继续重试没有意义。
+# 环境变量 AIRY_TOOL_FAIL_LIMIT 可覆盖（非法值回退默认）。
+DEFAULT_TOOL_FAIL_LIMIT = 3
+
+
+def _tool_fail_limit() -> int:
+    """连败熔断阈值（env ``AIRY_TOOL_FAIL_LIMIT``，缺省 3，下限 1）。"""
+    try:
+        return max(1, int(os.environ.get("AIRY_TOOL_FAIL_LIMIT", "")))
+    except ValueError:
+        return DEFAULT_TOOL_FAIL_LIMIT
+
+
+def _result_is_error(result: str) -> bool:
+    """判定工具结果是否为错误载荷（JSON 对象含 error 键）。
+
+    纯文本结果无法判定语义，宁可漏判也不误杀正常输出；JSON 解析
+    失败（含截断）同样不判失败。
+    """
+    try:
+        parsed = json.loads(result)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    return isinstance(parsed, dict) and "error" in parsed
 
 
 def _truncate_tool_result(result: str) -> str:
@@ -166,6 +194,12 @@ class LLMAgent(Agent):
 
         started = time.time()
         rounds = 0
+        fail_limit = _tool_fail_limit()
+        consecutive_failures = 0
+        # 工具结果指纹按单次 execute 归零：runner 主循环复用 agent
+        # 处理多个请求，上一任务尾部的重复调用不得污染本任务的
+        # loop 检测（与 _mid_progress_hinted 同理）。
+        self._tool_call_fingerprints = []
         # 中途收敛提示按单次 execute 计数（runner 主循环复用 agent 处理
         # 多个请求，标志须在每次执行时重置，避免跨任务误跳提示）。
         self._mid_progress_hinted = False
@@ -273,6 +307,25 @@ class LLMAgent(Agent):
                         }
                     )
                     self._track_tool_call(name, raw_args, tool_result)
+                    # 通用连败熔断：与同指纹重复检测互补——后者只捕获
+                    # "同参同果"空转，这里捕获"次次失败但内容各异"的
+                    # 系统性故障（q8i 实测主烧轮路径），达限立即终止。
+                    if _result_is_error(tool_result):
+                        consecutive_failures += 1
+                        if consecutive_failures >= fail_limit:
+                            return TaskResult(
+                                success=False,
+                                output=None,
+                                error=(
+                                    f"tool '{name}' failed {consecutive_failures} "
+                                    "consecutive calls; aborting instead of "
+                                    "burning the round budget on a systemic "
+                                    "failure"
+                                ),
+                                error_code="TOOL_CONSECUTIVE_FAILURES",
+                            )
+                    else:
+                        consecutive_failures = 0
                     repeated = self._consecutive_duplicate_tool_calls()
                     if repeated >= 3 and loop_hint is None:
                         loop_hint = (
@@ -433,11 +486,11 @@ class LLMAgent(Agent):
     # ── 工具结果反哺控制与 loop 保护（参照 Atom Code 64KiB 上限 + ToolLoopPolicy） ──
 
     def _track_tool_call(self, name: str, raw_args: str, result: str) -> None:
-        """记录最近一次 (工具, 参数, 结果) 指纹，供连续重复检测。"""
-        if not hasattr(self, "_tool_call_fingerprints"):
-            self._tool_call_fingerprints = []
-        fingerprint = (name, raw_args, result[:256])
-        self._tool_call_fingerprints.append(fingerprint)
+        """记录最近一次 (工具, 参数, 结果) 指纹，供连续重复检测。
+
+        指纹列表由 :meth:`execute` 在每次执行开始时归零。
+        """
+        self._tool_call_fingerprints.append((name, raw_args, result[:256]))
 
     def _consecutive_duplicate_tool_calls(self) -> int:
         """返回最近连续重复（指纹相同）的工具调用次数。"""
@@ -470,4 +523,5 @@ __all__ = [
     "DEFAULT_MODEL_SYSTEM1",
     "DEFAULT_MODEL_SYSTEM2",
     "SIMPLE_TASK_MAX_CHARS",
+    "DEFAULT_TOOL_FAIL_LIMIT",
 ]
