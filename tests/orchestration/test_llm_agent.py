@@ -8,6 +8,10 @@
   - 纯 content 截断 → 显式截断标记 + metrics.truncated
   - 非截断畸形 arguments → 显式 "invalid tool arguments JSON" 回传
     （替代历史 {"_raw": ...} 静默降级），工具不被调用
+
+0.1.17 R1-b 补充：通用连败熔断（TOOL_CONSECUTIVE_FAILURES）——
+次次失败但参数/错误内容各不相同的空转不触发同指纹检测，
+连败达阈值（默认 3，AIRY_TOOL_FAIL_LIMIT 可调）立即熔断。
 """
 
 from __future__ import annotations
@@ -173,3 +177,94 @@ class TestLLMAgentTruncation:
         payload = json.loads(tool_msgs[0]["content"])
         assert payload["error"].startswith(TOOL_MESSAGES)
         assert payload["arguments_head"] == '{"path": '
+
+
+class TestLLMAgentConsecutiveFailures:
+    """通用连败熔断：不同参数/不同错误内容的空转 fast-fail。"""
+
+    @pytest.mark.asyncio
+    async def test_distinct_failures_fast_fail(self):
+        """连败 3 次（参数各异，指纹不重复）→ TOOL_CONSECUTIVE_FAILURES。"""
+
+        def tool(params):
+            return {"error": f"no such file: {params['path']}"}
+
+        llm = ScriptedLLM(
+            [
+                _resp(tool_calls=[_tool_call("fs_write", '{"path": "a.txt"}', "c1")]),
+                _resp(tool_calls=[_tool_call("fs_write", '{"path": "b.txt"}', "c2")]),
+                _resp(tool_calls=[_tool_call("fs_write", '{"path": "c.txt"}', "c3")]),
+            ]
+        )
+        result = await _agent(llm, tool).execute("write", AgentContext("t"))
+        assert result.success is False
+        assert result.error_code == "TOOL_CONSECUTIVE_FAILURES"
+        assert "consecutive" in (result.error or "")
+        assert llm.calls == 3
+
+    @pytest.mark.asyncio
+    async def test_success_resets_counter(self):
+        """成功清零连败计数：2 败 + 1 成 + 2 败不熔断，正常收尾。"""
+        state = {"n": 0}
+
+        def tool(params):
+            state["n"] += 1
+            if state["n"] != 3:
+                return {"error": f"transient failure {state['n']}"}
+            return "ok"
+
+        llm = ScriptedLLM(
+            [
+                _resp(tool_calls=[_tool_call("fs_write", '{"p": 1}', "c1")]),
+                _resp(tool_calls=[_tool_call("fs_write", '{"p": 2}', "c2")]),
+                _resp(tool_calls=[_tool_call("fs_write", '{"p": 3}', "c3")]),
+                _resp(tool_calls=[_tool_call("fs_write", '{"p": 4}', "c4")]),
+                _resp(tool_calls=[_tool_call("fs_write", '{"p": 5}', "c5")]),
+                _resp(content="done"),
+            ]
+        )
+        result = await _agent(llm, tool).execute("write", AgentContext("t"))
+        assert result.success is True
+        assert result.output == "done"
+        assert llm.calls == 6
+
+    @pytest.mark.asyncio
+    async def test_plain_text_result_not_counted(self):
+        """纯文本结果不算失败：文本 + 文本 + 文本正常收尾，不熔断。"""
+        llm = ScriptedLLM(
+            [
+                _resp(tool_calls=[_tool_call("fs_write", '{"p": 1}', "c1")]),
+                _resp(tool_calls=[_tool_call("fs_write", '{"p": 2}', "c2")]),
+                _resp(tool_calls=[_tool_call("fs_write", '{"p": 3}', "c3")]),
+                _resp(content="done"),
+            ]
+        )
+        result = await _agent(llm, lambda p: "plain text ok").execute(
+            "write", AgentContext("t")
+        )
+        assert result.success is True
+        assert result.output == "done"
+
+    @pytest.mark.asyncio
+    async def test_env_limit_override_and_fallback(self, monkeypatch):
+        """AIRY_TOOL_FAIL_LIMIT=1 单败即熔断；非法值回退默认 3。"""
+        from orchestration.agents.llm import _tool_fail_limit
+
+        monkeypatch.setenv("AIRY_TOOL_FAIL_LIMIT", "1")
+
+        def tool(params):
+            return {"error": "boom"}
+
+        llm = ScriptedLLM(
+            [_resp(tool_calls=[_tool_call("fs_write", '{"p": 1}', "c1")])]
+        )
+        result = await _agent(llm, tool).execute("write", AgentContext("t"))
+        assert result.success is False
+        assert result.error_code == "TOOL_CONSECUTIVE_FAILURES"
+        assert llm.calls == 1
+
+        monkeypatch.setenv("AIRY_TOOL_FAIL_LIMIT", "not-a-number")
+        assert _tool_fail_limit() == 3
+
+        monkeypatch.setenv("AIRY_TOOL_FAIL_LIMIT", "0")
+        assert _tool_fail_limit() == 1
