@@ -118,7 +118,7 @@ class LLMAgent(Agent):
         contract = {
             "agent_id": "pm-001",
             "role": "product_manager",
-            "models": {"system1": "deepseek-v4-flash", "system2": "deepseek-v4-flash"},
+            "models": {"system1": "deepseek-flash", "system2": "deepseek-flash"},
         }
         agent = LLMAgent(contract, llm=make_llm_client())
         await agent.initialize()

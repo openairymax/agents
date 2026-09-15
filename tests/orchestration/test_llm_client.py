@@ -131,9 +131,9 @@ class TestMakeLLMClient:
 
     def test_default_model_airy_env(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "oa-key")
-        monkeypatch.setenv("AIRY_AGENT_MODEL", "deepseek-v4-flash")
+        monkeypatch.setenv("AIRY_AGENT_MODEL", "deepseek-flash")
         client = make_llm_client()
-        assert client.default_model == "deepseek-v4-flash"
+        assert client.default_model == "deepseek-flash"
 
 
 class TestLLMClientInit:
