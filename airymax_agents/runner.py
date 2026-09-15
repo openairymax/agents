@@ -86,24 +86,68 @@ def _content_declares_failure(text: str) -> bool:
     return True
 
 
-# 只读验证角色：任务管线中的 validator/verifier 与认知审查 reviewer 只允许
-# 读取与联网，禁止任何写操作。除系统提示词约束外，此处做能力隔离——直接
-# 从 agent 的工具注册表移除写工具，LLM 看不到也调不到（模型行为不可控，
-# 仅靠提示词无法可靠阻止越界，见 2026-08-19 tester_v1 越界 fs_write 根因）。
-READONLY_ROLES = frozenset({"validator", "verifier", "reviewer"})
+# 只读验证角色（归一化后的具体执行体角色）：验证者与认知审查者只允许
+# 读取与联网，禁止任何写操作。除系统提示词约束外，此处做能力隔离——
+# 直接从 agent 的工具注册表移除写工具，LLM 看不到也调不到（模型行为
+# 不可控，仅靠提示词无法可靠阻止越界，见 2026-08-19 tester_v1 越界
+# fs_write 根因）。判定先经角色归一化（validator/verifier → tester），
+# 抽象别名直传不再漏网。权威词汇经 A-IPC agent.vocab 加载（C 侧
+# agent_vocab SSoT），下列本地表仅为 agent_d 不可达时的启动回退。
+_READONLY_LOCAL = frozenset({"tester", "reviewer"})
 
 # 写操作工具：从只读角色的工具注册表与 schema 中移除。
 WRITE_TOOLS = frozenset({"fs_write", "fs_edit", "fs_delete", "shell_run"})
 
+# 运行期角色词汇表（agent.vocab 返回值），None 表示未加载/加载失败。
+_ROLE_VOCAB: Optional[dict] = None
+
+
+def _load_role_vocab(syscall_proxy: Optional[Any]) -> None:
+    """经 A-IPC agent.vocab 加载角色词汇表（失败回退本地，非致命）。"""
+    global _ROLE_VOCAB
+    if syscall_proxy is None:
+        return
+    try:
+        vocab = syscall_proxy.agent_vocab()
+        if isinstance(vocab, dict) and vocab.get("roles"):
+            _ROLE_VOCAB = vocab
+            logger.info("role vocabulary loaded via agent.vocab (%d roles)",
+                        len(vocab["roles"]))
+    except Exception as e:
+        logger.warning("agent.vocab unavailable, keep local vocab: %s", e)
+
+
+def _canonical_role(role: str) -> str:
+    """角色归一化：别名 → 具体执行体；未知 → 兜底（SSoT 语义）。"""
+    if _ROLE_VOCAB:
+        for entry in _ROLE_VOCAB.get("aliases", []):
+            if isinstance(entry, dict) and entry.get("alias") == role:
+                return entry["role"]
+        if role in _ROLE_VOCAB.get("roles", []):
+            return role
+        return _ROLE_VOCAB.get("fallback", "coding")
+    from airymax_agents import ROLE_ALIASES, ROLE_FALLBACK, AGENT_REGISTRY
+
+    if role in AGENT_REGISTRY:
+        return role
+    return ROLE_ALIASES.get(role, ROLE_FALLBACK)
+
+
+def _readonly_roles() -> frozenset:
+    if _ROLE_VOCAB and _ROLE_VOCAB.get("readonly"):
+        return frozenset(_ROLE_VOCAB["readonly"])
+    return _READONLY_LOCAL
+
 
 def _apply_role_tool_limits(agent: Any, role: str) -> None:
-    """按角色收紧 agent 可用工具。
+    """按角色收紧 agent 可用工具（判定基于归一化后的具体角色）。
 
     只读角色移除写工具（fs_write/fs_edit/fs_delete/shell_run）：LLM
     function-calling 的 schema 与其可调用注册表同时移除，实现能力隔离。
     其他角色保持完整工具集。
     """
-    if role not in READONLY_ROLES:
+    canon = _canonical_role(role)
+    if canon not in _readonly_roles():
         return
     tools = getattr(agent, "_tools", None)
     schemas = getattr(agent, "_tool_schemas", None)
@@ -112,7 +156,8 @@ def _apply_role_tool_limits(agent: Any, role: str) -> None:
             tools.pop(tid, None)
         if isinstance(schemas, dict):
             schemas.pop(tid, None)
-    logger.info("read-only role %s: write tools isolated (%d)", role, len(WRITE_TOOLS))
+    logger.info("read-only role %s (canon=%s): write tools isolated (%d)",
+                role, canon, len(WRITE_TOOLS))
 
 
 def _parse_spec(spec_str: str) -> dict:
@@ -213,6 +258,8 @@ def main() -> int:
 
     # 2. 构建 SyscallProxy（可选，失败退化为纯 Python 模式）
     syscall_proxy = _build_syscall_proxy()
+    # 角色词汇 SSoT：优先经 A-IPC 取权威词汇，失败保持本地回退表
+    _load_role_vocab(syscall_proxy)
 
     # 3. 实例化 Agent
     try:

@@ -117,6 +117,8 @@ def list_agents() -> List[str]:
 __all__ = [
     "AirymaxAgent",
     "AGENT_REGISTRY",
+    "ROLE_ALIASES",
+    "ROLE_FALLBACK",
     "get_agent",
     "list_agents",
     "ProductManagerAgent",
