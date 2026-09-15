@@ -192,8 +192,24 @@ class LLMAgent(Agent):
                 msg = choice.get("message", {})
                 tool_calls = msg.get("tool_calls")
 
+                # 厂商输出上限截断检测（OpenAI finish_reason=length，
+                # Anthropic 兼容值 max_tokens）：长生成（大文件 fs_write
+                # 的 arguments JSON）会被厂商在输出上限处截成半截。历史
+                # 实现不检测截断、解析失败后静默降级 {"_raw": ...}，LLM
+                # 收到误导性的"缺参数"错误后以不同内容反复重试（指纹检
+                # 测不触发），直至烧完 16 轮预算——蓝图节点空转超时的
+                # 直接根源。截断属确定性失败（同请求必然再次截断），
+                # 一经实锤立即 fast-fail，不消耗工具轮次。
+                finish = str(choice.get("finish_reason") or "")
+                output_truncated = finish in ("length", "max_tokens")
+
                 if not tool_calls:
-                    content = msg.get("content", "")
+                    content = msg.get("content", "") or ""
+                    if output_truncated:
+                        content += (
+                            "\n...[output truncated at provider token limit "
+                            f"(finish_reason={finish})]"
+                        )
                     return TaskResult(
                         success=True,
                         output=content,
@@ -202,6 +218,7 @@ class LLMAgent(Agent):
                             "rounds": rounds,
                             "tokens": resp.get("usage", {}).get("total_tokens"),
                             "elapsed_ms": int((time.time() - started) * 1000),
+                            "truncated": output_truncated,
                         },
                     )
 
@@ -231,6 +248,22 @@ class LLMAgent(Agent):
                     fn = tc.get("function", {})
                     name = fn.get("name", "")
                     raw_args = fn.get("arguments", "{}")
+                    if output_truncated:
+                        try:
+                            json.loads(raw_args)
+                        except json.JSONDecodeError as e:
+                            return TaskResult(
+                                success=False,
+                                output=None,
+                                error=(
+                                    f"tool '{name}' arguments truncated by "
+                                    f"provider output limit (finish_reason="
+                                    f"{finish}): {e}. Split the content into "
+                                    "smaller writes or raise "
+                                    "$AIRY_LLM_MAX_TOKENS."
+                                ),
+                                error_code="TOOL_ARGS_TRUNCATED",
+                            )
                     tool_result = await self._invoke_tool(name, raw_args)
                     messages.append(
                         {
@@ -372,8 +405,18 @@ class LLMAgent(Agent):
 
         try:
             args = json.loads(raw_args) if raw_args else {}
-        except json.JSONDecodeError:
-            args = {"_raw": raw_args}
+        except json.JSONDecodeError as e:
+            # 畸形 arguments 显式回传（历史实现静默降级 {"_raw": ...}，
+            # 工具侧 validator 只报"缺参数"，掩盖了 JSON 本身损坏的事实，
+            # LLM 无法据此换策略）。错误头进入工具结果指纹，同一畸形参数
+            # 重试可触发连续重复检测兜底 fast-fail。
+            return json.dumps(
+                {
+                    "error": f"invalid tool arguments JSON: {e}",
+                    "arguments_head": raw_args[:200],
+                },
+                ensure_ascii=False,
+            )
 
         try:
             if inspect.iscoroutinefunction(tool):
