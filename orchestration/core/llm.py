@@ -13,8 +13,8 @@ OpenAI Chat Completions 兼容协议 (https://platform.openai.com/docs/api-refer
 - 三要素配置：base_url + api_key + model
 - 厂商即配置：新增厂商只需在 ``OPENAI_COMPAT_PROVIDERS`` 加一行
   （默认端点 + key 环境变量），无需改协议代码
-- 用户侧配置：``$AIRY_LLM_PROVIDER`` 选厂商（deepseek/glm/qwen/moonshot/...）；
-  ``$AIRY_LLM_BASE_URL`` 可完全自定义任意 OpenAI 兼容端点；
+- 用户侧配置：``$AIRY_HOME/config/model.yaml`` 为模型连接唯一权威源
+  （model / base_url / key 变量名）；``$AIRY_LLM_PROVIDER`` 可显式选厂商；
   key 统一写在 ``$AIRY_HOME/config/secrets.env``
 """
 
@@ -23,7 +23,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import re
 import sys
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
@@ -68,11 +67,13 @@ def provider_default_base_url(provider: str) -> str:
 
 
 def _model_yaml_candidates() -> List[str]:
-    """model.yaml 候选路径（与 _provider_default_model 同源，SSoT）。"""
+    """model.yaml 候选路径（SSoT：$AIRY_HOME 安装面 > 源码树）。"""
+    candidates: List[str] = []
+    home = os.environ.get("AIRY_HOME", "").strip()
+    if home:
+        candidates.append(os.path.join(home, "config", "model.yaml"))
     here = os.path.dirname(os.path.abspath(__file__))  # .../orchestration/orchestration/core
-    candidates = [
-        os.path.join(here, "..", "..", "..", "manager", "model", "model.yaml"),
-    ]
+    candidates.append(os.path.join(here, "..", "..", "..", "manager", "model", "model.yaml"))
     env_cfg = os.environ.get("AIRY_MODEL_CONFIG", "").strip()
     if env_cfg:
         candidates.append(env_cfg)
@@ -157,40 +158,96 @@ def resolve_provider(explicit: Optional[str] = None) -> str:
     return "deepseek"
 
 
-def _provider_default_model(provider: Optional[str] = None) -> str:
-    """从 manager/model/model.yaml（SSoT）读取厂商默认模型名。
-
-    返回空串表示不可用（文件缺失/未匹配），由调用方继续回退。
-    轻量文本解析（无 YAML 依赖）：匹配 ``- name: "<provider>"`` 块中的
-    ``default_model`` 或 v2 表格的 ``model_id`` 行。路径：$AIRY_MODEL_CONFIG
-    > $AIRYMAXHUB_ROOT/ecosystem/manager/model/model.yaml > 相对路径回退。
-    """
+def _match_model_entry(provider: Optional[str]) -> Optional[Dict[str, str]]:
+    """按厂商名（大小写不敏感）匹配 models 表条目。"""
     if not provider:
-        return ""
-    candidates = _model_yaml_candidates()
+        return None
+    prov = provider.strip().casefold()
+    for entry in _load_models_table():
+        if (entry.get("name") or "").strip().casefold() == prov:
+            return entry
+    return None
 
-    pattern = re.compile(
-        r'-\s*name\s*:\s*["\']?' + re.escape(provider) + r'["\']?[^\n]*\n(?:[^\n]*\n)*?'
-        r'[^\S\n]*default_model\s*:\s*["\']?([^\s"\'\n]+)["\']?'
-    )
-    pattern_v2 = re.compile(
-        r'-\s*name\s*:\s*["\']?' + re.escape(provider) + r'["\']?[^\n]*\n(?:[^\n]*\n)*?'
-        r'[^\S\n]*model_id\s*:\s*["\']?([^\s"\'\n]+)["\']?'
-    )
-    for path in candidates:
+
+def _entry_by_model_id(model_id: str) -> Optional[Dict[str, str]]:
+    """按 model_id（大小写不敏感）反查 models 表条目。"""
+    mid = model_id.strip().casefold()
+    for entry in _load_models_table():
+        if (entry.get("model_id") or "").strip().casefold() == mid:
+            return entry
+    return None
+
+
+def _yaml_top_scalar(key: str) -> str:
+    """读取 model.yaml 顶层无缩进标量（如 ``default_model:``）。"""
+    for path in _model_yaml_candidates():
         try:
             with open(path, "r", encoding="utf-8") as f:
                 content = f.read()
         except OSError:
             continue
-        m = pattern.search(content) or pattern_v2.search(content)
-        if m:
-            return m.group(1).strip()
-        # v2：provider 名也可能匹配表条目的 model_id（模型名即厂商名）
-        for entry in _load_models_table():
-            if (entry.get("model_id") or "").strip() == provider:
-                return (entry.get("model_id") or "").strip()
+        for raw in content.splitlines():
+            if not raw or raw[0].isspace() or raw.lstrip().startswith("#"):
+                continue
+            k, sep, v = raw.partition(":")
+            if sep and k.strip() == key:
+                return _yaml_scalar(v)
     return ""
+
+
+def resolve_default_model(
+    explicit: Optional[str] = None, provider: Optional[str] = None
+) -> str:
+    """统一 model 解析（SSoT 单一入口）。
+
+    优先级：显式参数 → model.yaml 顶层 ``default_model`` → 厂商条目
+    ``model_id`` → ``$AIRY_AGENT_MODEL`` → ``$OPENAI_MODEL`` → 内置兜底。
+    model.yaml 为第一配置权威源：修改后新会话即生效，不受残留环境
+    变量遮蔽。
+    """
+    if explicit and explicit.strip():
+        return explicit.strip()
+    top = _yaml_top_scalar("default_model")
+    if top:
+        return top
+    entry = _match_model_entry(provider or resolve_provider())
+    if entry:
+        mid = (entry.get("model_id") or "").strip()
+        if mid:
+            return mid
+    for var in ("AIRY_AGENT_MODEL", "OPENAI_MODEL"):
+        env = os.environ.get(var, "").strip()
+        if env:
+            return env
+    return "deepseek-flash"
+
+
+def resolve_base_url(
+    explicit: Optional[str] = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+) -> str:
+    """统一 base_url 解析（与 model 同源一致）。
+
+    优先级：显式参数 → model.yaml 条目端点（优先跟随 ``model`` 所在
+    条目，否则按厂商匹配）→ ``$AIRY_LLM_BASE_URL`` → ``$OPENAI_BASE_URL``
+    → 厂商目录默认端点 → OpenAI 官方。环境变量仅作 model.yaml 缺失时
+    的兜底，不再遮蔽配置文件。
+    """
+    if explicit and explicit.strip():
+        return explicit.strip().rstrip("/")
+    entry = _entry_by_model_id(model) if model else None
+    if entry is None:
+        entry = _match_model_entry(provider or resolve_provider())
+    if entry:
+        url = (entry.get("base_url") or "").strip()
+        if url:
+            return url.rstrip("/")
+    for var in ("AIRY_LLM_BASE_URL", "OPENAI_BASE_URL"):
+        env = os.environ.get(var, "").strip()
+        if env:
+            return env.rstrip("/")
+    return _default_base_url(provider)
 
 
 def _resolve_api_key(explicit: Optional[str] = None, provider: Optional[str] = None) -> str:
@@ -263,46 +320,28 @@ def _resolve_max_tokens(explicit: Optional[int] = None) -> Optional[int]:
     return None
 
 
-def _resolve_base_url(explicit: Optional[str] = None, provider: Optional[str] = None) -> str:
-    """统一 base_url 解析。
-
-    优先级：显式参数 → ``$AIRY_LLM_BASE_URL`` → ``$OPENAI_BASE_URL`` →
-    provider 默认端点 → 按可用 key 推导（deepseek 优先）→ OpenAI 官方。
-    ``$AIRY_LLM_BASE_URL`` 可指向任一 OpenAI 兼容端点（含自定义厂商/本地 vLLM）。
-    """
-    if explicit:
-        return explicit.rstrip("/")
-    env = (
-        os.environ.get("AIRY_LLM_BASE_URL")
-        or os.environ.get("OPENAI_BASE_URL")
-    )
-    if env:
-        return env.rstrip("/")
-    return _default_base_url(provider)
-
-
 class LLMClient:
     """OpenAI 兼容的异步 LLM 客户端。
 
     支持任意 OpenAI-compatible endpoint (OpenAI / DeepSeek / 智谱 / Moonshot / 本地 vLLM …)。
 
-    配置优先级：显式参数 > 环境变量 > 默认值。
+    配置解析统一走 model.yaml SSoT 单一入口（构造/工厂路径行为一致）：
 
     - ``api_key``  : 见 :func:`_resolve_api_key`（OPENAI → DEEPSEEK → ANTHROPIC fallback）
-    - ``base_url`` : 见 :func:`_resolve_base_url`（AIRY_LLM_BASE_URL 优先于 OPENAI_BASE_URL）
-    - ``model``    : 默认调用时传入，未传则用构造时 default_model
+    - ``model``    : 见 :func:`resolve_default_model`（model.yaml 优先于环境变量）
+    - ``base_url`` : 见 :func:`resolve_base_url`（跟随 model 所在条目端点）
     """
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
-        default_model: str = "gpt-4o-mini",
+        default_model: Optional[str] = None,
         timeout: float = 60.0,
     ) -> None:
         self.api_key = _resolve_api_key(api_key)
-        self.base_url = _resolve_base_url(base_url)
-        self.default_model = default_model
+        self.default_model = resolve_default_model(default_model)
+        self.base_url = resolve_base_url(base_url, model=self.default_model)
         self.timeout = timeout
 
     async def chat(
@@ -583,15 +622,16 @@ def make_llm_client(
     - 任一 OpenAI 兼容 key 存在            → LLMClient (真实)
     - 否则                                  → MockLLMClient (离线)
 
-    真实模式下解析优先级：
-    - ``base_url``：显式 > ``$AIRY_LLM_BASE_URL`` > ``$OPENAI_BASE_URL`` >
-      provider 默认端点（如 glm → open.bigmodel.cn）
-    - ``model``   ：``default_model`` > ``$AIRY_AGENT_MODEL`` > ``$OPENAI_MODEL``
-      > ``gpt-4o-mini``
+    真实模式下解析统一走 model.yaml SSoT 单一入口：
+    - ``model``   ：``default_model`` 显式参数 > model.yaml 顶层
+      ``default_model`` > 厂商条目 ``model_id`` > ``$AIRY_AGENT_MODEL`` >
+      ``$OPENAI_MODEL`` > 内置兜底
+    - ``base_url``：显式 > model.yaml 条目端点（跟随 model 所在行）>
+      ``$AIRY_LLM_BASE_URL`` > ``$OPENAI_BASE_URL`` > 厂商目录默认端点
 
-    因此只需在 secrets.env 配置任意厂商的 API key（+ 可选 ``AIRY_LLM_PROVIDER`` /
-    ``AIRY_AGENT_MODEL``），即可接入任一 OpenAI 兼容厂商；``AIRY_LLM_BASE_URL``
-    可完全自定义任意端点（本地 vLLM / 内网代理等）。
+    因此接入厂商只需两步：model.yaml 表填一行连接（model/base_url），
+    secrets.env 配对应 key。修改 model.yaml 后新会话即生效，无需改环境
+    变量；环境变量仅作 model.yaml 缺失时的兜底。
     """
     # 先加载 secrets.env（幂等），使 daemon 无论何种方式启动都能拿到 LLM 凭据
     _load_secrets_env()
@@ -602,14 +642,8 @@ def make_llm_client(
     provider = resolve_provider(provider)
     resolved_key = _resolve_api_key(api_key, provider)
     if resolved_key:
-        model = (
-            default_model
-            or os.environ.get("AIRY_AGENT_MODEL", "")
-            or os.environ.get("OPENAI_MODEL", "")
-            or _provider_default_model(provider)  # SSoT: model.yaml default_model
-            or "gpt-4o-mini"
-        )
-        resolved_url = _resolve_base_url(base_url, provider)
+        model = resolve_default_model(default_model, provider)
+        resolved_url = resolve_base_url(base_url, provider, model)
         return LLMClient(default_model=model, base_url=resolved_url,
                          api_key=resolved_key)
 
@@ -631,6 +665,8 @@ __all__ = [
     "LLMClient",
     "MockLLMClient",
     "make_llm_client",
+    "resolve_default_model",
+    "resolve_base_url",
     "OPENAI_COMPAT_PROVIDERS",
     "get_supported_providers",
     "resolve_provider",
