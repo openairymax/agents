@@ -9,7 +9,7 @@
   - 非截断畸形 arguments → 显式 "invalid tool arguments JSON" 回传
     （替代历史 {"_raw": ...} 静默降级），工具不被调用
 
-0.1.17 R1-b 补充：通用连败熔断（TOOL_CONSECUTIVE_FAILURES）——
+0.1.17 R1-b 补充：通用连败熔断（TOOL_LOOP_CONSECUTIVE_FAILURES）——
 次次失败但参数/错误内容各不相同的空转不触发同指纹检测，
 连败达阈值（默认 3，AIRY_TOOL_FAIL_LIMIT 可调）立即熔断。
 """
@@ -184,7 +184,7 @@ class TestLLMAgentConsecutiveFailures:
 
     @pytest.mark.asyncio
     async def test_distinct_failures_fast_fail(self):
-        """连败 3 次（参数各异，指纹不重复）→ TOOL_CONSECUTIVE_FAILURES。"""
+        """连败 3 次（参数各异，指纹不重复）→ 熔断并汇总最后 K 个原因。"""
 
         def tool(params):
             return {"error": f"no such file: {params['path']}"}
@@ -198,8 +198,12 @@ class TestLLMAgentConsecutiveFailures:
         )
         result = await _agent(llm, tool).execute("write", AgentContext("t"))
         assert result.success is False
-        assert result.error_code == "TOOL_CONSECUTIVE_FAILURES"
+        assert result.error_code == "TOOL_LOOP_CONSECUTIVE_FAILURES"
         assert "consecutive" in (result.error or "")
+        # 熔断信息须自带原因摘要（3 条，各带工具名），无需回捞日志即可判读
+        assert "no such file: a.txt" in result.error
+        assert "no such file: b.txt" in result.error
+        assert "no such file: c.txt" in result.error
         assert llm.calls == 3
 
     @pytest.mark.asyncio
@@ -260,7 +264,7 @@ class TestLLMAgentConsecutiveFailures:
         )
         result = await _agent(llm, tool).execute("write", AgentContext("t"))
         assert result.success is False
-        assert result.error_code == "TOOL_CONSECUTIVE_FAILURES"
+        assert result.error_code == "TOOL_LOOP_CONSECUTIVE_FAILURES"
         assert llm.calls == 1
 
         monkeypatch.setenv("AIRY_TOOL_FAIL_LIMIT", "not-a-number")

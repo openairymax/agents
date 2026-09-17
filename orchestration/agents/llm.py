@@ -19,7 +19,8 @@
 
 工具调用最大 16 轮，避免无限循环：同指纹连续重复 3 次注入警告、
 4 次强制终止；连败（参数/错误内容各不相同也计入）达阈值
-（默认 3，``AIRY_TOOL_FAIL_LIMIT`` 可调）立即熔断；60% 轮数时
+（默认 3，``AIRY_TOOL_FAIL_LIMIT`` 可调）立即熔断并回报
+``TOOL_LOOP_CONSECUTIVE_FAILURES``（含最后 K 个失败原因）；60% 轮数时
 注入一次性收敛提示。契约遵循 ``01-agent-contract.md``：
 ``models.system2`` 用于深度思考 (t2)，``system1`` 用于快思考 (t1-f)。
 """
@@ -91,6 +92,22 @@ def _result_is_error(result: str) -> bool:
     except (json.JSONDecodeError, TypeError):
         return False
     return isinstance(parsed, dict) and "error" in parsed
+
+
+def _error_brief(result: str, limit: int = 160) -> str:
+    """提取工具错误载荷中的可判读原因（供连败熔断回报聚合）。
+
+    工具错误统一为 ``{"error": ...}`` JSON；解析失败时回退原文首段，
+    空白折叠为单空格，便于拼进单行错误信息。
+    """
+    try:
+        parsed = json.loads(result)
+    except (json.JSONDecodeError, TypeError):
+        parsed = None
+    text = parsed.get("error") if isinstance(parsed, dict) else None
+    if not isinstance(text, str) or not text:
+        text = result
+    return " ".join(text.split())[:limit]
 
 
 def _truncate_tool_result(result: str) -> str:
@@ -196,6 +213,9 @@ class LLMAgent(Agent):
         rounds = 0
         fail_limit = _tool_fail_limit()
         consecutive_failures = 0
+        # 最近 K 个失败原因（K = fail_limit），熔断时一并回报，
+        # 使上层无需回捞工具日志即可判读系统性故障的类型。
+        recent_failures: List[str] = []
         # 工具结果指纹按单次 execute 归零：runner 主循环复用 agent
         # 处理多个请求，上一任务尾部的重复调用不得污染本任务的
         # loop 检测（与 _mid_progress_hinted 同理）。
@@ -312,20 +332,24 @@ class LLMAgent(Agent):
                     # 系统性故障（q8i 实测主烧轮路径），达限立即终止。
                     if _result_is_error(tool_result):
                         consecutive_failures += 1
+                        recent_failures.append(f"{name}: {_error_brief(tool_result)}")
+                        del recent_failures[:-fail_limit]
                         if consecutive_failures >= fail_limit:
                             return TaskResult(
                                 success=False,
                                 output=None,
                                 error=(
-                                    f"tool '{name}' failed {consecutive_failures} "
-                                    "consecutive calls; aborting instead of "
+                                    f"tool calls failed {consecutive_failures} "
+                                    "consecutive times; aborting instead of "
                                     "burning the round budget on a systemic "
-                                    "failure"
+                                    "failure. recent causes: "
+                                    + " | ".join(recent_failures)
                                 ),
-                                error_code="TOOL_CONSECUTIVE_FAILURES",
+                                error_code="TOOL_LOOP_CONSECUTIVE_FAILURES",
                             )
                     else:
                         consecutive_failures = 0
+                        recent_failures.clear()
                     repeated = self._consecutive_duplicate_tool_calls()
                     if repeated >= 3 and loop_hint is None:
                         loop_hint = (
