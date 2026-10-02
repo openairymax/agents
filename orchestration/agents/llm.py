@@ -48,13 +48,6 @@ from ..core.project_context import inject_project_context
 
 logger = logging.getLogger(__name__)
 
-# 契约中声明的默认思考模型
-#   system2 (t2 深度思考) — 复杂任务主模型
-#   system1 (t1-f 快思考) — 简单任务快模型（省 token）
-# 保持 provider 中立：留空 "" 由运行时 default_model（SSoT model.yaml）决定，
-# 避免硬编码厂商模型名（如 gpt-4o-mini）导致 provider 切换时 400。
-DEFAULT_MODEL_SYSTEM2 = ""
-DEFAULT_MODEL_SYSTEM1 = ""
 # 简单任务判定阈值（≤ 此字符数的输入走 system1 快思考）
 SIMPLE_TASK_MAX_CHARS = 600
 # 工具回路最大轮数，防止 LLM 反复调用工具
@@ -407,16 +400,22 @@ class LLMAgent(Agent):
 
     # ── 内部辅助 ──────────────────────────────────────────
 
-    def _model_system1(self) -> str:
-        """契约 ``models.system1`` (t1-f 快思考)；缺省用客户端 default。
+    def _contract_model(self, key: str) -> str:
+        """契约 ``models.<key>`` 模型名解析（部署级覆盖 > 契约 > 客户端缺省）。
 
-        部署级覆盖：环境变量 ``AIRY_AGENT_MODEL`` 优先级最高（强制单模型）。
+        环境变量 ``AIRY_AGENT_MODEL`` 覆盖一切（部署级强制单模型）；契约
+        保持 provider 中立（不写死厂商模型名），缺省回落客户端 default
+        （SSoT model.yaml 经 core 解析）。
         """
         env_model = os.environ.get("AIRY_AGENT_MODEL", "").strip()
         if env_model:
             return env_model
         models = self.contract.get("models") or {}
-        return models.get("system1") or getattr(self.llm, "default_model", DEFAULT_MODEL_SYSTEM1)
+        return models.get(key) or getattr(self.llm, "default_model", "")
+
+    def _model_system1(self) -> str:
+        """契约 ``models.system1`` (t1-f 快思考)。"""
+        return self._contract_model("system1")
 
     def _select_model(self, input_data: Any) -> str:
         """按任务复杂度选择思考模型（双思考分级）：
@@ -424,27 +423,16 @@ class LLMAgent(Agent):
         - 简单任务（短输入 ≤ SIMPLE_TASK_MAX_CHARS）→ system1（t1-f 快思考，省 token）
         - 复杂任务 → system2（t2 深度思考）
 
-        环境变量 ``AIRY_AGENT_MODEL`` 覆盖一切（部署级强制单模型）。
-        契约保持 provider 中立（不在契约中写死厂商模型名）。
+        部署级 env ``AIRY_AGENT_MODEL`` 覆盖一切（见 :meth:`_contract_model`）。
         """
-        if os.environ.get("AIRY_AGENT_MODEL", "").strip():
-            return self._model_system2()
         text = self._stringify_input(input_data)
         if len(text) <= SIMPLE_TASK_MAX_CHARS:
             return self._model_system1()
         return self._model_system2()
 
     def _model_system2(self) -> str:
-        """契约 ``models.system2`` (t2 主思考)；缺省用客户端 default。
-
-        部署级覆盖：环境变量 ``AIRY_AGENT_MODEL`` 优先级最高，契约保持
-        provider 中立（不在契约中写死厂商模型名）。
-        """
-        env_model = os.environ.get("AIRY_AGENT_MODEL", "").strip()
-        if env_model:
-            return env_model
-        models = self.contract.get("models") or {}
-        return models.get("system2") or getattr(self.llm, "default_model", DEFAULT_MODEL_SYSTEM2)
+        """契约 ``models.system2`` (t2 主思考)。"""
+        return self._contract_model("system2")
 
     def _default_system_prompt(self) -> str:
         role = self.contract.get("role", "assistant")
@@ -544,8 +532,6 @@ class LLMAgent(Agent):
 __all__ = [
     "LLMAgent",
     "MAX_TOOL_ROUNDS",
-    "DEFAULT_MODEL_SYSTEM1",
-    "DEFAULT_MODEL_SYSTEM2",
     "SIMPLE_TASK_MAX_CHARS",
     "DEFAULT_TOOL_FAIL_LIMIT",
 ]
