@@ -10,7 +10,7 @@ Rust 实现位于 `airymax_agents_rs/`（当前为 `coding` 角色）。
 - **契约驱动**：每个 Agent 遵循 [`shared/contracts/agent.schema.json`](shared/contracts/agent.schema.json) 契约规范 v1.0.0（schema_version / agent_id / role / capabilities / models / required_permissions / cost_profile / trust_metrics），`contract.json` 是 Agent 与运行时之间的唯一可信接口
 - **零样板**：`AirymaxAgent` 基类通过 `__module__` 自动定位子类源文件目录，自动装配契约与提示词，子类只需声明 `ROLE`
 - **可独立运行**：无 `OPENAI_API_KEY` 时自动启用 `MockLLMClient`（确定性响应），便于 CI 与本地开发；配置 `OPENAI_API_KEY`（及可选 `OPENAI_BASE_URL`）后切换真实 LLM
-- **分层清晰**：本包依赖同仓 `orchestration/`（`LLMAgent` + `LLMClient`），不耦合 `manager` / `skills` / 运行时基础设施
+- **分层清晰**：本包依赖同仓 `orchestration/`（LLMAgent、LLMClient 与 AgentContext 等核心抽象），不耦合 `manager` / `skills` / 运行时基础设施
 
 ## 包含的 Agent
 
@@ -58,7 +58,7 @@ agents/
 │   ├── core/                     # Agent / Task / Tool / Storage / LLM 抽象
 │   ├── agents/                   # LLMAgent 执行体基类
 │   ├── strategies/               # 调度 / 规划策略
-│   ├── protocols/                # 预留协议扩展点（当前为空包）
+│   ├── protocols/                # 协议层：会话管理 + JSON-RPC / MCP handler
 │   ├── utils/                    # 通用工具（异常 / 日志）
 │   ├── config.yaml  run.sh  requirements.txt
 │   └── README.md
@@ -82,7 +82,7 @@ agents/
 
 ### 前置条件
 
-依赖同仓 `orchestration/` 包（`LLMAgent` + `LLMClient`），需在 `PYTHONPATH` 上。
+依赖同仓 `orchestration/` 包（LLMAgent、LLMClient 与 AgentContext 等核心抽象），需在 `PYTHONPATH` 上。
 
 ### 端到端示例
 
