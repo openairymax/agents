@@ -1,0 +1,31 @@
+{
+  "manifest_version": 1,
+  "id": "openclaw",
+  "kind": "integration",
+  "protocol": {
+    "name": "openclaw",
+    "version": "1.0.0"
+  },
+  "registry": {
+    "name": "打开Claw",
+    "version": "1.0",
+    "description": "打开Claw九问平台集成适配器",
+    "category": "integration",
+    "type": "openclaw",
+    "capabilities": ["multimodal", "streaming", "agent_discovery", "tool_calling"]
+  },
+  "transport": {
+    "kind": "unix_socket",
+    "magic_prefix": "OCLW"
+  },
+  "limits": {
+    "max_agents": 64,
+    "max_tools": 256,
+    "max_sessions": 128,
+    "max_context_kb": 1024
+  },
+  "timeouts": {
+    "default_ms": 30000
+  },
+  "heartbeat_interval_sec": 30
+}

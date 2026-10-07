@@ -1,0 +1,33 @@
+{
+  "manifest_version": 1,
+  "id": "mcp",
+  "kind": "standard",
+  "protocol": {
+    "name": "mcp",
+    "version": "1.0.0"
+  },
+  "registry": {
+    "name": "MCP",
+    "version": "1.0",
+    "description": "Model Context Protocol v1.0",
+    "category": "standard",
+    "type": "mcp",
+    "capabilities": ["tool_calling", "streaming", "resource_access"]
+  },
+  "transport": {
+    "kind": "stdio",
+    "wire_version": "2024-11-05"
+  },
+  "limits": {
+    "max_tools": 1024,
+    "max_resources": 512,
+    "max_prompts": 256,
+    "max_tool_args": 32,
+    "max_schema_depth": 16,
+    "max_message_size": 10485760
+  },
+  "timeouts": {
+    "default_ms": 30000,
+    "client_default_ms": 60000
+  }
+}

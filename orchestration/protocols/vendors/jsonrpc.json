@@ -1,0 +1,20 @@
+{
+  "manifest_version": 1,
+  "id": "jsonrpc",
+  "kind": "core",
+  "protocol": {
+    "name": "jsonrpc",
+    "version": "2.0"
+  },
+  "registry": {
+    "name": "JSON-RPC",
+    "version": "2.0",
+    "description": "原生JSON-RPC 2.0协议适配器",
+    "category": "core",
+    "type": "jsonrpc",
+    "capabilities": ["streaming", "batch"]
+  },
+  "transport": {
+    "kind": "http"
+  }
+}

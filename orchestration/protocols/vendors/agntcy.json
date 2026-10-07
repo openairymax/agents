@@ -1,0 +1,36 @@
+{
+  "manifest_version": 1,
+  "id": "agntcy",
+  "kind": "standard",
+  "protocol": {
+    "name": "agntcy",
+    "version": "0.1.0"
+  },
+  "registry": {
+    "name": "AGNTCY",
+    "version": "1.0",
+    "description": "AGNTCY Agent Connect Protocol",
+    "category": "standard",
+    "type": "agntcy",
+    "capabilities": ["agent_discovery", "streaming", "tool_calling"]
+  },
+  "transport": {
+    "kind": "http"
+  },
+  "limits": {
+    "max_agents": 512,
+    "max_capabilities": 128,
+    "max_tasks": 2048,
+    "max_channels": 256,
+    "max_message_size": 8388608
+  },
+  "timeouts": {
+    "default_ms": 30000
+  },
+  "auth": {
+    "token_size": 64
+  },
+  "ids": {
+    "channel_id_size": 48
+  }
+}
