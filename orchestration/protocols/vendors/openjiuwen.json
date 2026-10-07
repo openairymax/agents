@@ -14,6 +14,12 @@
     "type": "openjiuwen",
     "capabilities": ["binary", "low_latency", "crc_checksum"]
   },
+  "interface": {
+    "methods": [
+      "openjiuwen_verify_connection", "openjiuwen_get_capabilities",
+      "openjiuwen_unified_to_native", "openjiuwen_native_to_unified"
+    ]
+  },
   "transport": {
     "kind": "custom_binary",
     "endpoint_default": "/openjiuwen/v1"

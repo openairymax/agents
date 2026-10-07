@@ -70,6 +70,7 @@ class VendorManifest:
     category: Optional[str]
     type: str
     capabilities: Tuple[str, ...]
+    interface: Dict[str, Any]
     transport: Dict[str, Any]
     limits: Dict[str, Any]
     timeouts: Dict[str, Any]
@@ -82,6 +83,22 @@ class VendorManifest:
     def transport_kind(self) -> str:
         """Declared transport kind, empty when the manifest omits transport."""
         return str(self.transport.get("kind", ""))
+
+    @property
+    def methods(self) -> Tuple[str, ...]:
+        """Routable operation face, empty when the manifest declares none."""
+        return tuple(self.interface.get("methods", ()) or ())
+
+    @property
+    def invoke(self) -> Optional[Dict[str, Any]]:
+        """Single HTTP wire envelope shared by the operation face, else None."""
+        envelope = self.interface.get("invoke")
+        return dict(envelope) if envelope else None
+
+    @property
+    def is_registry(self) -> bool:
+        """True when the manifest carries a registry block (L4 self-description)."""
+        return "registry" in self.raw
 
     @property
     def default_timeout_ms(self) -> int:
@@ -112,6 +129,7 @@ def _to_manifest(doc: Dict[str, Any]) -> VendorManifest:
         category=registry.get("category"),
         type=registry.get("type", proto.get("name", doc["id"])),
         capabilities=tuple(registry.get("capabilities", []) or ()),
+        interface=dict(doc.get("interface", {})),
         transport=dict(doc.get("transport", {})),
         limits=dict(doc.get("limits", {})),
         timeouts=dict(doc.get("timeouts", {})),

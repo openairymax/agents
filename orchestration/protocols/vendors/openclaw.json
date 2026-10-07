@@ -14,6 +14,16 @@
     "type": "openclaw",
     "capabilities": ["multimodal", "streaming", "agent_discovery", "tool_calling"]
   },
+  "interface": {
+    "methods": [
+      "openclaw_register_agent", "openclaw_discover_agents",
+      "openclaw_unregister_agent", "openclaw_register_tool",
+      "openclaw_list_tools", "openclaw_create_session",
+      "openclaw_close_session", "openclaw_send_message",
+      "openclaw_delegate_task", "openclaw_query_task",
+      "openclaw_cancel_task", "openclaw_get_cluster_status"
+    ]
+  },
   "transport": {
     "kind": "unix_socket",
     "magic_prefix": "OCLW"

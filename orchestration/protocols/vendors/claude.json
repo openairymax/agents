@@ -14,6 +14,16 @@
     "type": "claude",
     "capabilities": ["streaming", "tool_calling", "vision", "extended_thinking"]
   },
+  "interface": {
+    "methods": [
+      "claude_messages_create", "claude_messages_stream",
+      "claude_count_tokens", "claude_list_models"
+    ],
+    "invoke": {
+      "style": "rest",
+      "path": "/v1/messages"
+    }
+  },
   "transport": {
     "kind": "http",
     "wire_version": "2023-06-01"

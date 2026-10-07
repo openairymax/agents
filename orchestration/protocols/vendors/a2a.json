@@ -14,6 +14,14 @@
     "type": "a2a",
     "capabilities": ["agent_discovery", "streaming", "consensus"]
   },
+  "interface": {
+    "methods": ["agent/discover", "task/create", "task/list", "stats"],
+    "invoke": {
+      "style": "envelope",
+      "path": "/api/v1/invoke",
+      "version": "0.3"
+    }
+  },
   "transport": {
     "kind": "http",
     "framing": {
