@@ -175,6 +175,7 @@ class ProtocolSessionManager:
         self._clients: Dict[ProtocolType, Any] = {}
         self._bound_tools: Dict[str, BoundToolInfo] = {}
         self._handlers: List[ProtocolHandler] = []
+        self._handlers_loaded = False
         self._request_queue: asyncio.Queue = asyncio.Queue(maxsize=100)
         self._stats = {
             "requests_processed": 0,
@@ -215,6 +216,10 @@ class ProtocolSessionManager:
                     logger.warning(f"Failed to initialize {proto_type}: {e}")
         else:
             logger.info("Running in standalone mode (no SDK protocol client)")
+
+        if not self._handlers_loaded:
+            self._handlers.extend(build_manifest_handlers())
+            self._handlers_loaded = True
 
         self._state = SessionState.ACTIVE
 
@@ -297,8 +302,6 @@ class ProtocolSessionManager:
         )
 
         for handler in self._handlers:
-            # BoundToolInfo 无 method 字段（只有 source_method）；原代码访问 tool.method
-            # 抛 AttributeError，导致自定义 handler 路由永不生效
             if tool.source_method in handler.supported_methods():
                 try:
                     result = await handler.handle_request(ctx)
@@ -392,42 +395,68 @@ class ProtocolSessionManager:
 # ============================================================================
 # Built-in Handlers
 # ============================================================================
-class JSONRPCHandler(ProtocolHandler):
-    """Handler for JSON-RPC 2.0 protocol messages."""
 
-    def __init__(self, endpoint: str = None, timeout_ms: int = None):
-        manifest = get_vendor_registry().resolve("jsonrpc")
-        if endpoint is None:
-            endpoint = os.environ.get("AGENTRT_ENDPOINT", "http://127.0.0.1:18789")
-        if timeout_ms is None:
-            timeout_ms = manifest.default_timeout_ms if manifest else 30000
-        self._endpoint = endpoint
-        self._timeout_ms = timeout_ms
-        self._request_id = 0
+class ManifestHandler(ProtocolHandler):
+    """Manifest-driven handler for any vendor with a declared invocation face.
+
+    One mechanism, N strategies: routing and wire shape come from the L4
+    ``interface`` block, so adding a vendor is adding a data file, never a
+    class. Vendors without an HTTP invocation face still expose their method
+    face here but honestly reject execution with a boundary error instead of
+    fabricating a call.
+    """
+
+    def __init__(self, manifest: VendorManifest, endpoint: Optional[str] = None,
+                 timeout_ms: Optional[int] = None):
+        self._manifest = manifest
+        self._endpoint = endpoint or os.environ.get("AGENTRT_ENDPOINT", "http://127.0.0.1:18789")
+        self._timeout_ms = timeout_ms or manifest.default_timeout_ms
+
+    @property
+    def manifest(self) -> VendorManifest:
+        return self._manifest
 
     @property
     def protocol_name(self) -> str:
-        return "jsonrpc"
+        return self._manifest.id
 
     def supported_methods(self) -> List[str]:
-        return [
-            "agent.list", "agent.create", "agent.destroy",
-            "skill.list", "skill.execute", "skill.install",
-            "task.submit", "task.query", "task.cancel",
-            "memory.write", "memory.search", "memory.evolve",
-            "session.create", "session.close",
-        ]
+        return list(self._manifest.methods)
+
+    def _build_payload(self, ctx: ProtocolRequestContext) -> Dict[str, Any]:
+        invoke = self._manifest.invoke
+        style = invoke.get("style", "")
+        if style == "jsonrpc2":
+            return {
+                "jsonrpc": "2.0",
+                "id": f"{ctx.trace_id}_{int(time.time())}",
+                "method": ctx.method,
+                "params": ctx.params,
+            }
+        if style == "envelope":
+            return {
+                "protocol": self._manifest.id,
+                "version": str(invoke.get("version", "")),
+                "method": ctx.method,
+                "params": ctx.params,
+            }
+        return ctx.params
 
     async def handle_request(self, ctx: ProtocolRequestContext) -> ProtocolResponse:
+        invoke = self._manifest.invoke
+        if invoke is None:
+            return ProtocolResponse(
+                success=False,
+                error_code=5010,
+                error_message=(f"{self._manifest.id}: no HTTP invocation face "
+                               f"(transport={self._manifest.transport_kind})"),
+                protocol=self._manifest.id,
+            )
+
         import aiohttp
 
-        url = f"{self._endpoint}/rpc"
-        payload = {
-            "jsonrpc": "2.0",
-            "id": f"{ctx.trace_id}_{int(time.time())}",
-            "method": ctx.method,
-            "params": ctx.params,
-        }
+        url = f"{self._endpoint}{invoke['path']}"
+        payload = self._build_payload(ctx)
 
         try:
             async with aiohttp.ClientSession() as session:
@@ -439,64 +468,26 @@ class JSONRPCHandler(ProtocolHandler):
                     return ProtocolResponse(
                         success=True,
                         data=body,
-                        protocol="jsonrpc",
+                        protocol=self._manifest.id,
+                        transformed=invoke.get("style", "") != "jsonrpc2",
                     )
         except Exception as e:
             return ProtocolResponse(
                 success=False,
                 error_code=5003,
                 error_message=str(e),
-                protocol="jsonrpc",
+                protocol=self._manifest.id,
             )
 
 
-class MCPHandler(ProtocolHandler):
-    """Handler for Model Context Protocol (MCP) messages."""
-
-    def __init__(self, endpoint: str = None, timeout_ms: int = None):
-        manifest = get_vendor_registry().resolve("mcp")
-        if endpoint is None:
-            endpoint = os.environ.get("AGENTRT_ENDPOINT", "http://127.0.0.1:18789")
-        if timeout_ms is None:
-            timeout_ms = manifest.default_timeout_ms if manifest else 30000
-        self._endpoint = endpoint
-        self._timeout_ms = timeout_ms
-
-    @property
-    def protocol_name(self) -> str:
-        return "mcp"
-
-    def supported_methods(self) -> List[str]:
-        return ["tools/list", "tools/call", "resources/list", "resources/read"]
-
-    async def handle_request(self, ctx: ProtocolRequestContext) -> ProtocolResponse:
-        import aiohttp
-
-        url = f"{self._endpoint}/api/v1/invoke"
-        payload = {
-            "protocol": "mcp",
-            "version": "1.0",
-            "method": ctx.method,
-            "params": ctx.params,
-        }
-
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url, json=payload,
-                    timeout=aiohttp.ClientTimeout(total=self._timeout_ms / 1000),
-                ) as resp:
-                    body = await resp.json()
-                    return ProtocolResponse(
-                        success=True,
-                        data=body,
-                        protocol="mcp",
-                        transformed=True,
-                    )
-        except Exception as e:
-            return ProtocolResponse(
-                success=False,
-                error_code=5003,
-                error_message=str(e),
-                protocol="mcp",
-            )
+def build_manifest_handlers(
+    registry: Optional[VendorRegistry] = None,
+    endpoint: Optional[str] = None,
+) -> List[ProtocolHandler]:
+    """Build one handler per registry-bearing vendor manifest (L4-driven)."""
+    registry = registry or get_vendor_registry()
+    return [
+        ManifestHandler(manifest, endpoint=endpoint)
+        for manifest in registry.list()
+        if manifest.is_registry
+    ]
