@@ -3,8 +3,9 @@
 """
 orchestration.protocols.vendor_registry — L3 厂商策略注入面消费器
 
-按 0.1.19 架构文档 §5.1 四层分离：L4 厂商策略以数据文件（``vendors/*.json``）
-承载，本模块是 L3 消费面 —— 读取并索引厂商 manifest，供运行时租户装配协议处理器，
+按 0.1.19 架构文档 §5.1 四层分离：L4 厂商策略以数据文件承载于生态管理面
+（``manager/protocols/vendors/*.json``，单一源），本模块是 L3 消费面 —— 读取并
+索引厂商 manifest，供运行时租户装配协议处理器，
 使一类决策从「N 份代码」塌缩为「1 个件 + N 份数据」。
 
 机制 / 策略边界（sdk/README 运行期租户律）：本模块只消费数据，不实现协议栈；
@@ -24,7 +25,42 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-_VENDORS_DIR = Path(__file__).resolve().parent / "vendors"
+def _planes() -> List[Path]:
+    """Vendor-manifest planes, most authoritative first.
+
+    The manifests are carried as a single source by the ecosystem manager
+    sub-module. Candidate order mirrors the AgentRT runtime SSoT
+    (``agentrt-bootstrap``): explicit ``AIRY_VENDOR_MANIFESTS_DIR``, then the
+    ``AIRYMAXHUB_ROOT`` ecosystem plane, then the installed ``$AIRY_HOME``
+    config plane, then the in-tree walk-up, then a consumer-local directory
+    so the loader stays pluggable on its own.
+    """
+    planes: List[Path] = []
+    env = os.environ.get("AIRY_VENDOR_MANIFESTS_DIR", "").strip()
+    if env:
+        planes.append(Path(env))
+    root = os.environ.get("AIRYMAXHUB_ROOT", "").strip()
+    if root:
+        planes.append(Path(root) / "ecosystem" / "manager"
+                      / "protocols" / "vendors")
+    home = os.environ.get("AIRY_HOME", "").strip()
+    if home:
+        planes.append(Path(home) / "config" / "protocols" / "vendors")
+    for base in Path(__file__).resolve().parents:
+        planes.append(base / "manager" / "protocols" / "vendors")
+    planes.append(Path(__file__).resolve().parent / "vendors")
+    return planes
+
+
+def _vendor_dir() -> Path:
+    """First manifest plane that exists, else the local fallback."""
+    for plane in _planes():
+        if plane.is_dir():
+            return plane
+    return Path(__file__).resolve().parent / "vendors"
+
+
+_VENDORS_DIR = _vendor_dir()
 _SCHEMA_FILE = _VENDORS_DIR / "_schema.json"
 
 _REQUIRED_FIELDS = ("manifest_version", "id", "kind", "protocol")
