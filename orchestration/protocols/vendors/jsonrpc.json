@@ -14,6 +14,19 @@
     "type": "jsonrpc",
     "capabilities": ["streaming", "batch"]
   },
+  "interface": {
+    "methods": [
+      "agent.list", "agent.create", "agent.destroy",
+      "skill.list", "skill.execute", "skill.install",
+      "task.submit", "task.query", "task.cancel",
+      "memory.write", "memory.search", "memory.evolve",
+      "session.create", "session.close"
+    ],
+    "invoke": {
+      "style": "jsonrpc2",
+      "path": "/rpc"
+    }
+  },
   "transport": {
     "kind": "http"
   }

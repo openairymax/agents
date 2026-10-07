@@ -14,6 +14,18 @@
     "type": "mcp",
     "capabilities": ["tool_calling", "streaming", "resource_access"]
   },
+  "interface": {
+    "methods": [
+      "initialize", "tools/list", "tools/call",
+      "resources/list", "resources/read", "resources/templates/list",
+      "prompts/list", "prompts/get", "logging/setLogLevel"
+    ],
+    "invoke": {
+      "style": "envelope",
+      "path": "/api/v1/invoke",
+      "version": "1.0"
+    }
+  },
   "transport": {
     "kind": "stdio",
     "wire_version": "2024-11-05"

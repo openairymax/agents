@@ -14,6 +14,13 @@
     "type": "openai",
     "capabilities": ["streaming", "tool_calling", "embeddings"]
   },
+  "interface": {
+    "methods": ["/v1/chat/completions", "/v1/embeddings", "/v1/models"],
+    "invoke": {
+      "style": "rest",
+      "path": "/v1/chat/completions"
+    }
+  },
   "transport": {
     "kind": "http"
   },

@@ -83,6 +83,41 @@
         }
       }
     },
+    "interface": {
+      "type": "object",
+      "description": "厂商能力面（L4 策略数据，非实现）：编排层经此暴露该厂商的可路由操作面与线信封。methods 采用该厂商自身规范的命名形式（JSON-RPC / MCP 线方法串、REST 端点路径、或适配器公开操作名），逐条取证、禁止臆造——(a) C 侧有明文方法路由器（*_route_request）或公开头 docstring 列举方法者，verbatim 抄录线方法串；(b) 仅 C 公开操作面（*_adapter.h 导出的业务操作函数）而无路由器者，verbatim 抄录函数名，生命周期/连接管理/回调注册/统计等 plumbing 与纯工具函数不入；(c) 核心协议（kind=core）沿用编排层声明的统一方法面 verbatim；(d) 无操作面者省略本块。invoke 仅在存在明文 HTTP 线信封证据（SDK / 适配器源码）时填，表示该方法面共用的单一规范入口；缺省表示该厂商非本处理器可 HTTP 直呼（transport.kind 非 http 或无路由证据），处理器须诚实报边界错误，禁止伪造调用。",
+      "additionalProperties": false,
+      "required": ["methods"],
+      "properties": {
+        "methods": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "invoke": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["style", "path"],
+          "properties": {
+            "style": {
+              "enum": ["jsonrpc2", "envelope", "rest"]
+            },
+            "path": {
+              "type": "string",
+              "pattern": "^/"
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
     "transport": {
       "type": "object",
       "additionalProperties": false,

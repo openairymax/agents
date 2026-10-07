@@ -14,6 +14,13 @@
     "type": "china_eco",
     "capabilities": ["streaming", "tool_calling", "embeddings"]
   },
+  "interface": {
+    "methods": [
+      "china_eco_add_llm_provider", "china_eco_remove_llm_provider",
+      "china_eco_llm_chat", "china_eco_add_storage_bridge",
+      "china_eco_storage_upload", "china_eco_storage_download"
+    ]
+  },
   "transport": {
     "kind": "http"
   },
