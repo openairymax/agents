@@ -1,0 +1,34 @@
+{
+  "manifest_version": 1,
+  "id": "openjiuwen",
+  "kind": "integration",
+  "protocol": {
+    "name": "openjiuwen",
+    "version": "1.0.0"
+  },
+  "registry": {
+    "name": "打开Jiuwen",
+    "version": "1.0",
+    "description": "打开Jiuwen自定义二进制协议",
+    "category": "integration",
+    "type": "openjiuwen",
+    "capabilities": ["binary", "low_latency", "crc_checksum"]
+  },
+  "transport": {
+    "kind": "custom_binary",
+    "endpoint_default": "/openjiuwen/v1"
+  },
+  "limits": {
+    "max_message_size": 65536,
+    "send_queue_size": 64
+  },
+  "timeouts": {
+    "default_ms": 30000
+  },
+  "retry": {
+    "max_consecutive_errors": 5,
+    "base_delay_ms": 1000,
+    "max_delay_ms": 60000
+  },
+  "heartbeat_interval_sec": 30
+}

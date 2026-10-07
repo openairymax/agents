@@ -1,0 +1,34 @@
+{
+  "manifest_version": 1,
+  "id": "claude",
+  "kind": "integration",
+  "protocol": {
+    "name": "claude",
+    "version": "1.0.0"
+  },
+  "registry": {
+    "name": "Claude",
+    "version": "1.0",
+    "description": "Anthropic Claude API适配器",
+    "category": "integration",
+    "type": "claude",
+    "capabilities": ["streaming", "tool_calling", "vision", "extended_thinking"]
+  },
+  "transport": {
+    "kind": "http",
+    "wire_version": "2023-06-01"
+  },
+  "limits": {
+    "max_models": 16,
+    "max_tools": 64,
+    "max_messages": 128,
+    "max_context_tokens": 200000,
+    "max_output_tokens": 8192
+  },
+  "timeouts": {
+    "default_ms": 60000
+  },
+  "retry": {
+    "max_attempts": 5
+  }
+}

@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
+from .vendor_registry import VendorManifest, VendorRegistry, get_vendor_registry
+
 logger = logging.getLogger(__name__)
 
 # Re-export from agentrt.protocol for convenience
@@ -393,10 +395,14 @@ class ProtocolSessionManager:
 class JSONRPCHandler(ProtocolHandler):
     """Handler for JSON-RPC 2.0 protocol messages."""
 
-    def __init__(self, endpoint: str = None):
+    def __init__(self, endpoint: str = None, timeout_ms: int = None):
+        manifest = get_vendor_registry().resolve("jsonrpc")
         if endpoint is None:
             endpoint = os.environ.get("AGENTRT_ENDPOINT", "http://127.0.0.1:18789")
+        if timeout_ms is None:
+            timeout_ms = manifest.default_timeout_ms if manifest else 30000
         self._endpoint = endpoint
+        self._timeout_ms = timeout_ms
         self._request_id = 0
 
     @property
@@ -425,8 +431,10 @@ class JSONRPCHandler(ProtocolHandler):
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload,
-                                         timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                async with session.post(
+                    url, json=payload,
+                    timeout=aiohttp.ClientTimeout(total=self._timeout_ms / 1000),
+                ) as resp:
                     body = await resp.json()
                     return ProtocolResponse(
                         success=True,
@@ -445,10 +453,14 @@ class JSONRPCHandler(ProtocolHandler):
 class MCPHandler(ProtocolHandler):
     """Handler for Model Context Protocol (MCP) messages."""
 
-    def __init__(self, endpoint: str = None):
+    def __init__(self, endpoint: str = None, timeout_ms: int = None):
+        manifest = get_vendor_registry().resolve("mcp")
         if endpoint is None:
             endpoint = os.environ.get("AGENTRT_ENDPOINT", "http://127.0.0.1:18789")
+        if timeout_ms is None:
+            timeout_ms = manifest.default_timeout_ms if manifest else 30000
         self._endpoint = endpoint
+        self._timeout_ms = timeout_ms
 
     @property
     def protocol_name(self) -> str:
@@ -470,8 +482,10 @@ class MCPHandler(ProtocolHandler):
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload,
-                                         timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                async with session.post(
+                    url, json=payload,
+                    timeout=aiohttp.ClientTimeout(total=self._timeout_ms / 1000),
+                ) as resp:
                     body = await resp.json()
                     return ProtocolResponse(
                         success=True,

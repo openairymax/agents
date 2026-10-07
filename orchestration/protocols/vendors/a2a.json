@@ -1,0 +1,72 @@
+{
+  "manifest_version": 1,
+  "id": "a2a",
+  "kind": "standard",
+  "protocol": {
+    "name": "a2a",
+    "version": "0.3.0"
+  },
+  "registry": {
+    "name": "A2A",
+    "version": "0.3",
+    "description": "Agent-to-Agent Protocol v0.3",
+    "category": "standard",
+    "type": "a2a",
+    "capabilities": ["agent_discovery", "streaming", "consensus"]
+  },
+  "transport": {
+    "kind": "http",
+    "framing": {
+      "magic": "A2A/0.3",
+      "header_separator": "\r\n",
+      "terminator": "\r\n\r\n"
+    }
+  },
+  "limits": {
+    "max_agents": 256,
+    "max_tasks": 4096,
+    "max_capabilities": 64,
+    "max_sessions": 128,
+    "max_tokens": 256,
+    "max_message_size": 16777216
+  },
+  "timeouts": {
+    "default_ms": 60000
+  },
+  "auth": {
+    "token_size": 64,
+    "secret_max_len": 128,
+    "max_failed_attempts": 5,
+    "token_expiry_sec": 3600
+  },
+  "crypto": {
+    "nonce_size": 16,
+    "tag_size": 16,
+    "key_size": 32
+  },
+  "ids": {
+    "session_id_size": 36,
+    "task_id_size": 40
+  },
+  "enums": {
+    "consensus": {
+      "none": 0,
+      "majority": 1,
+      "unanimous": 2
+    },
+    "negotiate": {
+      "cost": 1,
+      "timeout": 2,
+      "priority": 3
+    },
+    "outcome": {
+      "accepted": 1,
+      "counter_offer": 2,
+      "rejected": 3
+    },
+    "task_status": {
+      "completed": 3,
+      "accepted": 4
+    }
+  }
+}

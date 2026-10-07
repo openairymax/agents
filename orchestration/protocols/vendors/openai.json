@@ -1,0 +1,39 @@
+{
+  "manifest_version": 1,
+  "id": "openai",
+  "kind": "integration",
+  "protocol": {
+    "name": "openai",
+    "version": "1.0"
+  },
+  "registry": {
+    "name": "打开AI",
+    "version": "1.0",
+    "description": "打开AI API兼容适配器",
+    "category": "integration",
+    "type": "openai",
+    "capabilities": ["streaming", "tool_calling", "embeddings"]
+  },
+  "transport": {
+    "kind": "http"
+  },
+  "limits": {
+    "max_models": 32,
+    "max_functions": 128,
+    "max_messages": 256,
+    "max_tokens_default": 4096,
+    "embedding_dim_default": 1536
+  },
+  "timeouts": {
+    "default_ms": 60000
+  },
+  "retry": {
+    "max_attempts": 3,
+    "base_delay_ms": 1000
+  },
+  "rate_limit": {
+    "rpm": 500,
+    "tpm": 150000,
+    "window_sec": 60
+  }
+}

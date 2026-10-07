@@ -37,6 +37,7 @@ include = ["airymax_agents*", "orchestration*"]
 
 [tool.setuptools.package-data]
 airymax_agents = ["**/contract.json", "**/prompts/*.md"]
+orchestration = ["protocols/vendors/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
