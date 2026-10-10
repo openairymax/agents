@@ -28,8 +28,10 @@ Rust 实现位于 `airymax_agents_rs/`（当前为 `coding` 角色）。
 | `reviewer` | `ReviewerAgent` | 代码评审、最佳实践建议、重构建议 |
 | `analyst` | `AnalystAgent` | 数据分析、趋势检测、可视化报告 |
 
-> 角色清单的运行时权威为 `airymax_agents/__init__.py` 的 `AGENT_REGISTRY`；
-> 执行体注册表见 `registry/agents.yaml`（coordinator / custom_template 仍为规划中）。
+> 运行时角色词汇的权威为机制核 `agentrt/commons/utils/cognition/agent_vocab.c`，
+> 经 agent_d 的 `vocab` 方法（A-IPC）对外服务；Python 侧 `AGENT_REGISTRY` /
+> `ROLE_ALIASES` 为策略运行时映射，`registry/agents.yaml` 为生态声明面，
+> 三方由 `tests/test_vocab_consistency.py` 守卫锁定（coordinator / custom_template 仍为规划中）。
 
 ## 目录结构
 
@@ -37,7 +39,7 @@ Rust 实现位于 `airymax_agents_rs/`（当前为 `coding` 角色）。
 agents/
 ├── README.md
 ├── airymax_agents/                # Python 实现（11 角色）
-│   ├── __init__.py            # 统一导出 + get_agent() 工厂 + AGENT_REGISTRY（角色 SSoT）
+│   ├── __init__.py            # 统一导出 + get_agent() 工厂 + AGENT_REGISTRY（Python 角色映射）
 │   ├── base.py                # AirymaxAgent 基类 (自动加载契约+提示词)
 │   ├── product_manager/
 │   │   ├── __init__.py
@@ -69,7 +71,7 @@ agents/
 │       ├── agent-ffi/             # syscall FFI 绑定
 │       └── coding_agent/          # Rust CodingAgent (LLM 驱动)
 ├── registry/
-│   └── agents.yaml              # 执行体注册表（运行时单一可信源）
+│   └── agents.yaml              # 执行体声明注册表（生态声明面）
 ├── shared/
 │   └── contracts/
 │       └── agent.schema.json    # 契约 JSON Schema（权威）

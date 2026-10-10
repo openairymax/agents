@@ -1,12 +1,15 @@
 # =============================================================================
-# Airymax Agent 执行体注册表 — 运行时单一可信源
+# Airymax Agent 执行体注册表 — 生态声明面（执行体清单权威）
 # 版本: v1.0.0
 # 最后更新: 2026-07-31
 # 规范: docs/AirymaxRT/20-modules/10-contracts/01-agent-contract.md (v1.0.0)
 # Schema: shared/contracts/agent.schema.json
 # =============================================================================
-# 本文件是运行时（agent_d / sched_d / sdk-python）查询执行体清单的入口。
-# 仅保留运行时路由所需的最小字段；完整契约（capabilities 的 input/output
+# 本文件是生态执行体清单的声明面（权威），供 manager 治理与一致性守卫消费。
+# 运行时角色词汇的权威为机制核 agentrt/commons/utils/cognition/agent_vocab.c，
+# 经 agent_d 的 vocab 方法（A-IPC）对外服务；两者由守卫测试
+# tests/test_vocab_consistency.py 锁定，不得漂移。
+# 仅保留执行体路由所需的最小字段；完整契约（capabilities 的 input/output
 # schema、cost_profile、trust_metrics 等）请查阅各 Agent 的 contract.json。
 #
 # 与 ecosystem/manager/agent/registry.yaml 的关系：
@@ -190,7 +193,7 @@ agents:
 # - source: builtin（内置）/ external（外部安装）/ custom（用户自定义）
 # - language: 实现语言（python / rust / c / mixed）
 # - version: 实现版本（SemVer），planned Agent 用 "0.0.0"
-# - enabled: 运行时是否可被 agent_d spawn
+# - enabled: 声明该执行体是否对外可用（供 manager 治理与生态校验；运行时角色解析权威为机制核 agent_vocab.c）
 # - implementation_status: implemented / planned / experimental / deprecated
 # - contract_path: 相对仓库根的 contract.json 路径；planned Agent 暂为 null
 # - description: 一句话功能描述（与 contract.json.description 保持一致）
