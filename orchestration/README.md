@@ -34,8 +34,9 @@ orchestration/
 ├── strategies/                 # 调度策略
 │   ├── dispatching/            # 分发策略
 │   └── planning/               # 规划策略
-├── protocols/                  # 预留协议扩展点（当前为空包）
-│   └── __init__.py
+├── protocols/                  # 协议层：会话管理 + 厂商策略注入消费（VendorRegistry）
+│   ├── __init__.py             # ProtocolSessionManager / Adapter / ToolBridge / Runner
+│   └── vendor_registry.py      # L3 厂商策略注入面消费器（读 manager/protocols/vendors/*.json）
 ├── utils/                      # 工具函数
 │   ├── __init__.py
 │   ├── exceptions.py           # 异常层级定义
