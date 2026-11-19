@@ -204,6 +204,10 @@ class TestMechanismVocabAlignment(unittest.TestCase):
         assert c_ro == runner_ro, _diff("只读集合 C↔runner", c_ro, runner_ro)
 
     def test_fallback_c_python_aligned(self):
+        if _AGENTRT_DIR is None:
+            raise unittest.SkipTest(
+                "agentrt 机制核不在当前组装（agents 独仓检出），跳过 C↔策略一致性校验"
+            )
         assert _VOCAB_H is not None and _VOCAB_H.is_file(), (
             f"agentrt 已存在但缺少词汇头文件: {_VOCAB_H}"
         )
