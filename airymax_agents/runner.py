@@ -8,7 +8,11 @@
 
   - 请求（从 stdin 读取）::
 
-      {"agent_id": "...", "input": "..."}
+      {"agent_id": "...", "input": "...", "session_id": "...", "history": [...]}
+
+    ``session_id`` 与 ``history`` 均可选：前者标识会话，后者为
+    OpenAI messages 形式的历史轮次（user/assistant），在本次输入前
+    重放以支持多轮追问。每次请求独立构造上下文，不跨请求复用。
 
   - 响应（写入 stdout）::
 
@@ -230,11 +234,21 @@ def _make_ready(role: str, degraded: Optional[list] = None,
     return json.dumps(frame, ensure_ascii=False)
 
 
-async def _execute_once(agent: Any, agent_id: str, user_input: str) -> str:
-    """执行一次 Agent 调用，返回 JSON 响应字符串。"""
+async def _execute_once(agent: Any, agent_id: str, user_input: str,
+                        session_id: Optional[str] = None,
+                        history: Optional[list] = None) -> str:
+    """执行一次 Agent 调用，返回 JSON 响应字符串。
+
+    上下文按请求独立构造：会话标识与历史随请求携带（缺省即无会话、
+    无历史），不复用上一请求的上下文（S-P1-19 跨请求串话根因）。
+    """
     from orchestration.core.agent import AgentContext
 
-    ctx = AgentContext(agent_id=agent_id)
+    ctx = AgentContext(
+        agent_id=agent_id,
+        session_id=session_id,
+        history=list(history or []),
+    )
     result = await agent.execute(user_input, ctx)
     output = getattr(result, "output", None)
     if output is None:
@@ -328,6 +342,10 @@ def main() -> int:
             req = json.loads(line)
             agent_id = req.get("agent_id", "unknown")
             user_input = req.get("input", "")
+            session_id = req.get("session_id") or None
+            history = req.get("history")
+            if not isinstance(history, list):
+                history = None
         except (json.JSONDecodeError, AttributeError) as e:
             print(_make_response(success=False, error=f"bad request: {e}"), flush=True)
             continue
@@ -361,7 +379,7 @@ def main() -> int:
         logger.debug("runner workspace: %s", agent.workspace_dir or _RUNNER_BASE_CWD)
 
         try:
-            resp = asyncio.run(_execute_once(agent, agent_id, user_input))
+            resp = asyncio.run(_execute_once(agent, agent_id, user_input, session_id, history))
         except Exception as e:
             logger.exception("execute failed (agent_id=%s)", agent_id)
             resp = _make_response(success=False, error=f"execute failed: {e}")

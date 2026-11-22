@@ -137,6 +137,24 @@ def _truncate_tool_result(result: str) -> str:
     )
 
 
+def _history_messages(context: AgentContext) -> List[Dict[str, Any]]:
+    """取上下文携带的会话历史（OpenAI messages 形式）。
+
+    只重放 user/assistant 轮次：system 提示词由执行体本轮自行注入，
+    避免调用方历史里的 system 与本轮策略冲突。条目须为带字符串
+    role/content 的 dict，其余丢弃（协议边界校验，不猜测修形）。
+    """
+    out: List[Dict[str, Any]] = []
+    for item in getattr(context, "history", None) or []:
+        if not isinstance(item, dict):
+            continue
+        role = item.get("role")
+        content = item.get("content")
+        if role in ("user", "assistant") and isinstance(content, str):
+            out.append({"role": role, "content": content})
+    return out
+
+
 class LLMAgent(Agent):
     """调用 LLM + 执行工具的具体 Agent。
 
@@ -223,7 +241,6 @@ class LLMAgent(Agent):
     async def execute(self, input_data: Any, context: AgentContext) -> TaskResult:
         """执行任务：调 LLM + 工具回路，返回 TaskResult。"""
         self._status = AgentStatus.RUNNING
-        self._context = context
         self._update_activity()
 
         started = time.time()
@@ -245,10 +262,12 @@ class LLMAgent(Agent):
         tool_defs = self._build_tool_definitions()
 
         # 项目上下文（AGENTS.md 等价物）作为 system 消息注入最前；
-        # 未找到约定文件时保持原消息序列不变
+        # 未找到约定文件时保持原消息序列不变。会话历史紧随 system、
+        # 位于本轮输入之前，使追问能读到上一轮的问答（S-P1-19）。
         messages: List[Dict[str, Any]] = inject_project_context(
             [
                 {"role": "system", "content": self.system_prompt},
+                *_history_messages(context),
                 {"role": "user", "content": self._stringify_input(input_data)},
             ]
         )
@@ -413,7 +432,15 @@ class LLMAgent(Agent):
         均转发到 :meth:`execute` 并以结果回信。
         """
         if message.type in ("task", "delegate"):
-            ctx = self._context or AgentContext(self.agent_id)
+            # 上下文按消息独立构造：runner 复用同一 Agent 实例处理多个请求，
+            # 沿用上次 execute 的上下文会把上一请求的会话标识与元数据带进
+            # 本轮（跨请求串话）。会话标识随消息携带，缺省即无会话。
+            meta = dict(message.metadata or {})
+            ctx = AgentContext(
+                agent_id=self.agent_id,
+                session_id=meta.get("session_id"),
+                metadata=meta,
+            )
             result = await self.execute(message.content, ctx)
             return Message(
                 message_type="result",

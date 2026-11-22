@@ -80,6 +80,11 @@ class AgentContext:
 
     timeout: Optional[float] = None
 
+    # 会话历史（OpenAI messages 形式，仅 user/assistant 轮次）：
+    # 由调用方随请求携带，执行体在本轮输入前重放，实现多轮追问；
+    # 上下文本身每次请求独立构造，不跨请求复用。
+    history: List[Dict[str, Any]] = field(default_factory=list)
+
 
 
 
@@ -182,8 +187,6 @@ class Agent(ABC):
 
         self._status = AgentStatus.CREATED
 
-        self._context: Optional[AgentContext] = None
-
         self._tools: Dict[str, Any] = {}
 
         self._tool_executor: Optional[Any] = None
@@ -213,16 +216,6 @@ class Agent(ABC):
         self._status = value
 
         self._last_activity = time.time()
-
-    
-
-    @property
-
-    def context(self) -> Optional[AgentContext]:
-
-        """获取当前执行上下文"""
-
-        return self._context
 
     
 
@@ -306,7 +299,15 @@ class Agent(ABC):
 
         if message.type == "task":
 
-            result = await self.execute(message.content, self._context)
+            # 每次消息独立构造上下文：Agent 实例跨请求复用，缓存上次
+            # 上下文会把上一请求的会话标识与元数据带进本轮（跨请求串话）。
+            meta = dict(message.metadata or {})
+            ctx = AgentContext(
+                agent_id=self.agent_id,
+                session_id=meta.get("session_id"),
+                metadata=meta,
+            )
+            result = await self.execute(message.content, ctx)
 
             return Message(
 

@@ -360,3 +360,42 @@ class TestToolRoundsBudget:
         assert result.error_code == "TOOL_LOOP_OVERFLOW"
         assert "2 rounds" in (result.error or "")
 
+
+class TestConversationHistory:
+    """S-P1-19：会话历史随上下文重放，且不跨请求残留。"""
+
+    @pytest.mark.asyncio
+    async def test_history_replayed_before_input(self):
+        """历史轮次位于 system 之后、本轮输入之前；非契约条目丢弃。"""
+        llm = ScriptedLLM([_resp(content="第二轮答案")])
+        ctx = AgentContext(
+            "t",
+            session_id="s-1",
+            history=[
+                {"role": "user", "content": "第一轮问题"},
+                {"role": "assistant", "content": "第一轮答案"},
+                {"role": "system", "content": "调用方注入的 system"},
+                {"role": "user"},
+            ],
+        )
+
+        await _agent(llm, lambda params: "ok").execute("第二轮追问", ctx)
+
+        convo = [m for m in llm.seen_messages[0] if m["role"] != "system"]
+        assert convo == [
+            {"role": "user", "content": "第一轮问题"},
+            {"role": "assistant", "content": "第一轮答案"},
+            {"role": "user", "content": "第二轮追问"},
+        ]
+
+    @pytest.mark.asyncio
+    async def test_previous_turn_not_leaked(self):
+        """无历史的第二轮不得带上第一轮输入（历史只来自上下文）。"""
+        llm = ScriptedLLM([_resp(content="第一轮答案"), _resp(content="第二轮答案")])
+        agent = _agent(llm, lambda params: "ok")
+
+        await agent.execute("第一轮问题", AgentContext("t", session_id="s-1"))
+        await agent.execute("第二轮追问", AgentContext("t", session_id="s-1"))
+
+        convo = [m for m in llm.seen_messages[1] if m["role"] != "system"]
+        assert convo == [{"role": "user", "content": "第二轮追问"}]
