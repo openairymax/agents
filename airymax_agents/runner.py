@@ -19,8 +19,11 @@
 
   - 响应（写入 stdout）::
 
-      {"success": true, "output": "..."}
+      {"success": true, "output": "...", "metrics": {...}}
       {"success": false, "error": "..."}
+
+    ``metrics``（model/rounds/tokens/elapsed_ms）仅随成功响应出现，
+    供父代理汇总子任务用量；agent_d 只消费 ``output``，不受影响。
 
 生命周期:
 
@@ -211,11 +214,19 @@ def _build_syscall_proxy() -> Tuple[Optional[Any], str]:
         return None, str(e)[:120]
 
 
-def _make_response(output: str = "", success: bool = True, error: str = "") -> str:
-    """构建单行 JSON 响应。"""
+def _make_response(output: str = "", success: bool = True, error: str = "",
+                   metrics: Optional[dict] = None) -> str:
+    """构建单行 JSON 响应。
+
+    ``metrics``（model/rounds/tokens/elapsed_ms）随成功响应回传：子代理
+    需要把 token 与耗时汇总给父任务；agent_d 的 inv_take 只取 output，
+    不会消费该字段（对既有调用方向后兼容）。
+    """
     resp: dict = {"success": success}
     if success:
         resp["output"] = output
+        if metrics:
+            resp["metrics"] = metrics
     else:
         resp["error"] = error
     return json.dumps(resp, ensure_ascii=False)
@@ -275,7 +286,12 @@ async def _execute_once(agent: Any, agent_id: str, user_input: str,
             success=False,
             error="agent reported it could not complete the task: " + str(output)[:200],
         )
-    return _make_response(output=str(output), success=True)
+    metrics = getattr(result, "metrics", None)
+    return _make_response(
+        output=str(output),
+        success=True,
+        metrics=metrics if isinstance(metrics, dict) else None,
+    )
 
 
 def main() -> int:
