@@ -399,3 +399,24 @@ class TestConversationHistory:
 
         convo = [m for m in llm.seen_messages[1] if m["role"] != "system"]
         assert convo == [{"role": "user", "content": "第二轮追问"}]
+
+
+class TestToolLoopSystemBudget:
+    """S-P1-11：工具回路不得追加 system 消息（本地模板容错差）。"""
+
+    @pytest.mark.asyncio
+    async def test_loop_hint_folds_into_tool_result(self):
+        """重复调用触发的 loop-hint 折叠进 tool 结果，system 始终唯一。"""
+        same = _resp(tool_calls=[_tool_call("fs_write", '{"path": "a"}')])
+        llm = ScriptedLLM([same, same, same, _resp(content="结论")])
+
+        result = await _agent(llm, lambda params: "same").execute(
+            "probe", AgentContext("t")
+        )
+
+        assert result.success is True
+        last = llm.seen_messages[-1]
+        assert [m["role"] for m in last].count("system") == 1
+        assert last[0]["role"] == "system"
+        assert "[loop-hint]" in last[-1]["content"]
+        assert last[-1]["role"] == "tool"

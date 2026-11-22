@@ -319,8 +319,8 @@ class LLMAgent(Agent):
                 # 同一工具 + 同一参数 + 同一结果连续出现 3 次注入警告，4 次强制终止，
                 # 防止模型对失败调用空转直至硬上限。
                 # OpenAI 兼容 API 要求 tool 结果消息紧跟带 tool_calls 的 assistant
-                # 消息（中间不得插入 system 等其它 role），因此 loop-hint 在全部
-                # tool 消息追加完成后统一注入。
+                # 消息，且本地 chat 模板对多 system 消息容错差；loop-hint 因此
+                # 折叠进最后一条 tool 结果，不新增 system 消息（S-P1-11）。
                 loop_hint = None
                 # 中途收敛提示（q8i 生产实测）：模型可能在"不同参数/不同工具"间
                 # 空转（指纹不同，不触发上面的连续重复检测）直至硬上限。到
@@ -405,8 +405,10 @@ class LLMAgent(Agent):
                             ),
                             error_code="TOOL_LOOP_DETECTED",
                         )
-                if loop_hint is not None:
-                    messages.append({"role": "system", "content": loop_hint})
+                if loop_hint is not None and messages[-1].get("role") == "tool":
+                    messages[-1]["content"] = (
+                        f"{messages[-1].get('content') or ''}\n\n{loop_hint}"
+                    )
                 rounds += 1
                 logger.debug("LLMAgent[%s] tool round %d done", self.agent_id, rounds)
 
