@@ -1,7 +1,8 @@
 # Copyright (c) 2026 SPHARX. All Rights Reserved.
 """LLM 客户端统一 model/base_url/key/max_tokens 解析单测。
 
-覆盖 ``orchestration/core/llm.py`` 的 model.yaml SSoT 单一解析入口：
+覆盖 ``orchestration/core/llm_cfg.py`` 的 model.yaml SSoT 单一解析入口
+与 ``orchestration/core/llm.py`` 的环境感知工厂：
   - ``resolve_default_model`` : model.yaml 顶层 default_model > 条目 model_id > 环境变量
   - ``resolve_base_url``      : model.yaml 条目端点（跟随 model）> 环境变量兜底
   - ``_resolve_api_key``      : OPENAI_API_KEY → DEEPSEEK_API_KEY → ANTHROPIC_API_KEY
@@ -21,7 +22,7 @@ import types
 
 import pytest
 
-import orchestration.core.llm as llm
+import orchestration.core.llm_cfg as llm_cfg
 from orchestration.core.llm import (
     LLMClient,
     MockLLMClient,
@@ -51,7 +52,7 @@ def _clear_llm_env(monkeypatch):
 def _disable_model_yaml(monkeypatch):
     """屏蔽全部 model.yaml 候选路径（模拟安装面缺失）。"""
     _clear_llm_env(monkeypatch)
-    monkeypatch.setattr(llm, "_model_yaml_candidates",
+    monkeypatch.setattr(llm_cfg, "_model_yaml_candidates",
                         lambda: ["/nonexistent/model.yaml"])
 
 
