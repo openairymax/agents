@@ -45,6 +45,7 @@ from ..core.agent import (
 )
 from ..core.llm import LLMClient, MockLLMClient, make_llm_client
 from ..core.project_context import inject_project_context
+from ..core.tool import tool_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -483,14 +484,29 @@ class LLMAgent(Agent):
                 ensure_ascii=False,
             )
 
+        timeout = tool_timeout()
         try:
             if inspect.iscoroutinefunction(tool):
-                result = await tool(args)
+                result = await asyncio.wait_for(tool(args), timeout=timeout)
             else:
-                result = await asyncio.to_thread(tool, args)
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(tool, args), timeout=timeout
+                )
             if isinstance(result, str):
                 return result
             return json.dumps(result, ensure_ascii=False, default=str)
+        except asyncio.TimeoutError:
+            logger.warning(
+                "LLMAgent[%s] tool '%s' timed out after %.0fs",
+                self.agent_id, name, timeout,
+            )
+            return json.dumps(
+                {
+                    "error": f"tool '{name}' timed out after {timeout:.0f}s",
+                    "error_code": "TOOL_TIMEOUT",
+                },
+                ensure_ascii=False,
+            )
         except Exception as e:
             logger.warning("LLMAgent[%s] tool '%s' raised: %s", self.agent_id, name, e)
             return json.dumps({"error": str(e)}, ensure_ascii=False)

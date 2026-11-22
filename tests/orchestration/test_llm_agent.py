@@ -16,7 +16,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import threading
+import time
 
 import pytest
 
@@ -272,3 +275,47 @@ class TestLLMAgentConsecutiveFailures:
 
         monkeypatch.setenv("AIRY_TOOL_FAIL_LIMIT", "0")
         assert _tool_fail_limit() == 1
+
+
+class TestToolTimeout:
+    """S-P0-08：单工具硬超时，挂死工具不得阻塞整个任务回路。"""
+
+    @pytest.mark.asyncio
+    async def test_hung_sync_tool_aborts_within_bound(self, monkeypatch):
+        """同步工具挂死 → 超时载荷计入连败，任务在秒级终态收敛。"""
+        monkeypatch.setenv("AIRY_TOOL_TIMEOUT_S", "0.2")
+        monkeypatch.setenv("AIRY_TOOL_FAIL_LIMIT", "1")
+        release = threading.Event()
+        llm = ScriptedLLM(
+            [_resp(tool_calls=[_tool_call("fs_write", '{"path": "a"}')])]
+        )
+
+        def hung(params):
+            release.wait(5)
+            return "never"
+
+        started = time.monotonic()
+        try:
+            result = await _agent(llm, hung).execute("write", AgentContext("t"))
+        finally:
+            release.set()
+        elapsed = time.monotonic() - started
+        assert elapsed < 2.0, f"回路被挂死工具阻塞 {elapsed:.1f}s"
+        assert result.success is False
+        assert result.error_code == "TOOL_LOOP_CONSECUTIVE_FAILURES"
+        assert "timed out" in (result.error or "")
+
+    @pytest.mark.asyncio
+    async def test_async_tool_timeout_payload(self, monkeypatch):
+        """协程工具超时同样回落 TOOL_TIMEOUT，并携带错误码。"""
+        monkeypatch.setenv("AIRY_TOOL_TIMEOUT_S", "0.2")
+
+        async def hung(params):
+            await asyncio.sleep(5)
+            return "never"
+
+        agent = _agent(ScriptedLLM([]), hung)
+        payload = json.loads(await agent._invoke_tool("fs_write", "{}"))
+        assert payload["error_code"] == "TOOL_TIMEOUT"
+        assert "timed out" in payload["error"]
+

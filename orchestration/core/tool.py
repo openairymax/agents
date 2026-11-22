@@ -5,7 +5,22 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Callable, Awaitable
 import asyncio
+import os
 import time
+
+# 单工具硬超时（秒）唯一来源：执行器默认值与 LLMAgent 回路共用。
+# 同步工具运行在线程池里，线程不可取消；超时后必须立即回到回路，
+# 一个挂死工具只能毁掉自己的一次调用，不能吃满整个任务。
+DEFAULT_TOOL_TIMEOUT_S = 60.0
+
+
+def tool_timeout() -> float:
+    '''单工具超时秒数（``AIRY_TOOL_TIMEOUT_S`` 覆盖，非法或非正值回退默认）。'''
+    try:
+        value = float(os.environ.get("AIRY_TOOL_TIMEOUT_S", ""))
+    except ValueError:
+        return DEFAULT_TOOL_TIMEOUT_S
+    return value if value > 0 else DEFAULT_TOOL_TIMEOUT_S
 
 
 class ToolCategory(Enum):
@@ -441,7 +456,7 @@ class ToolExecutor:
     def __init__(
         self,
         max_concurrent: int = 50,
-        default_timeout: float = 60.0
+        default_timeout: float = DEFAULT_TOOL_TIMEOUT_S
     ):
         """
         初始化工具执行器
@@ -563,6 +578,8 @@ class ToolExecutor:
 
 
 __all__ = [
+    "DEFAULT_TOOL_TIMEOUT_S",
+    "tool_timeout",
     "Tool",
     "ToolCategory",
     "ToolCapability",
