@@ -11,6 +11,8 @@ from __future__ import annotations
 import os
 from typing import Dict, List, Optional, Tuple
 
+from .endpoints import OLLAMA_URL
+
 # OpenAI 兼容厂商目录：名称 → (默认端点, key 环境变量)
 # 覆盖国内外主流厂商：DeepSeek / 智谱 GLM / 通义千问 Qwen / Moonshot Kimi /
 # 硅基流动（聚合开源模型）/ 讯飞星火 / MiniMax / 本地 Ollama / OpenAI。
@@ -24,7 +26,7 @@ OPENAI_COMPAT_PROVIDERS: Dict[str, Tuple[str, str]] = {
     "siliconflow": ("https://api.siliconflow.cn/v1", "SILICONFLOW_API_KEY"),
     "spark":       ("https://spark-api-open.xf-yun.com/v1", "SPARK_API_KEY"),
     "minimax":     ("https://api.minimax.chat/v1", "MINIMAX_API_KEY"),
-    "ollama":      ("http://localhost:11434/v1", ""),
+    "ollama":      (OLLAMA_URL, ""),
 }
 
 # 自动探测时的厂商优先级（DeepSeek 居首，与 model.yaml global.default_provider 对齐）
