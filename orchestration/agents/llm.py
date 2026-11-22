@@ -22,7 +22,9 @@
 （默认 3，``AIRY_TOOL_FAIL_LIMIT`` 可调）立即熔断并回报
 ``TOOL_LOOP_CONSECUTIVE_FAILURES``（含最后 K 个失败原因）；60% 轮数时
 注入一次性收敛提示。契约遵循 ``01-agent-contract.md``：
-``models.system2`` 用于深度思考 (t2)，``system1`` 用于快思考 (t1-f)。
+``models.system2`` 用于深度思考 (t2)，``system1`` 用于快思考 (t1-f)；
+分级依据见 :mod:`orchestration.core.tier`（任务类型与复杂度信号，
+长度只是弱特征）。
 """
 
 from __future__ import annotations
@@ -46,12 +48,11 @@ from ..core.agent import (
 from ..core.llm import LLMClient, MockLLMClient, make_llm_client
 from ..core.llm_cfg import model_tool_rounds
 from ..core.project_context import inject_project_context
+from ..core.tier import TIER_DEEP, pick_tier
 from ..core.tool import tool_timeout
 
 logger = logging.getLogger(__name__)
 
-# 简单任务判定阈值（≤ 此字符数的输入走 system1 快思考）
-SIMPLE_TASK_MAX_CHARS = 600
 # 工具回路轮次预算，防止 LLM 反复调用工具。
 # 机制与策略分离：机制给硬上限（TOOL_ROUNDS_MAX，与 agent_d 的
 # rounds_resolve 同界 32）；策略经 AIRY_AGENT_TOOL_ROUNDS 收紧到具体值；
@@ -245,7 +246,7 @@ class LLMAgent(Agent):
 
         started = time.time()
         rounds = 0
-        model = self._select_model(input_data)
+        model = self._select_model(input_data, context)
         max_rounds = _rounds_limit(model)
         fail_limit = _tool_fail_limit()
         consecutive_failures = 0
@@ -471,18 +472,23 @@ class LLMAgent(Agent):
         """契约 ``models.system1`` (t1-f 快思考)。"""
         return self._contract_model("system1")
 
-    def _select_model(self, input_data: Any) -> str:
-        """按任务复杂度选择思考模型（双思考分级）：
+    def _select_model(self, input_data: Any, context: Optional[AgentContext] = None) -> str:
+        """按任务类型与复杂度选择思考模型（双思考分级）：
 
-        - 简单任务（短输入 ≤ SIMPLE_TASK_MAX_CHARS）→ system1（t1-f 快思考，省 token）
-        - 复杂任务 → system2（t2 深度思考）
+        - 分级由 :func:`orchestration.core.tier.pick_tier` 产出：显式
+          ``metadata.complexity``/``task_type`` 优先，其余按动作词、改码
+          引用、代码围栏、多步标记与工具需求计分，长度只是弱特征；
+        - t1f → system1（快思考，省 token），t2 → system2（深度思考）。
 
         部署级 env ``AIRY_AGENT_MODEL`` 覆盖一切（见 :meth:`_contract_model`）。
         """
         text = self._stringify_input(input_data)
-        if len(text) <= SIMPLE_TASK_MAX_CHARS:
-            return self._model_system1()
-        return self._model_system2()
+        meta = getattr(context, "metadata", None) if context is not None else None
+        tier = pick_tier(text, meta)
+        logger.debug(
+            "LLMAgent[%s] tier=%s chars=%d", self.agent_id, tier, len(text)
+        )
+        return self._model_system2() if tier == TIER_DEEP else self._model_system1()
 
     def _model_system2(self) -> str:
         """契约 ``models.system2`` (t2 主思考)。"""
@@ -602,6 +608,5 @@ __all__ = [
     "LLMAgent",
     "TOOL_ROUNDS_DEFAULT",
     "TOOL_ROUNDS_MAX",
-    "SIMPLE_TASK_MAX_CHARS",
     "DEFAULT_TOOL_FAIL_LIMIT",
 ]
