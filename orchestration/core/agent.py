@@ -74,6 +74,10 @@ class AgentContext:
 
     session_id: Optional[str] = None
 
+    # 父任务标识（子代理执行上下文）：子代理由父代理派生，二者共享会话
+    # 但任务彼此独立。顶层任务的 parent_task_id 为 None。
+    parent_task_id: Optional[str] = None
+
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     created_at: float = field(default_factory=time.time)
