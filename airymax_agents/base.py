@@ -133,14 +133,14 @@ class AirymaxAgent(LLMAgent):
         # 注入代理后注册 tool_d 内置工具（注册失败降级为纯 LLM，不阻断）
         self._register_builtin_tools()
         # 子代理（§25.6）：父任务派生隔离子进程。环境里的深度计数由父
-        # 进程在 spawn 时注入；达到上限后不再注册子代理工具，使子代理
-        # 无法继续派生（递归防护的第一道闸，管理器内还有第二道）。
+        # 进程在 spawn 时注入；达到上限后作用域内不再注册子代理工具，使
+        # 子代理无法继续派生（递归防护的第一道闸，管理器内还有第二道）。
+        # 注册放在 execute 的作用域里而非构造期：构造期的工具集必须只
+        # 反映角色与目录（降级态为空集），任务态的派生能力不混入其中。
         self._subagent_depth = _env_int("AIRY_SUBAGENT_DEPTH", 0)
         self._subagent_max_depth = _env_int("AIRY_SUBAGENT_MAX_DEPTH", 1)
         self._task_scope_id: Optional[str] = None
         self._subagent_manager: Optional[SubagentManager] = None
-        if self._subagent_depth < self._subagent_max_depth:
-            self._register_subagent_tools()
         logger.debug(
             "AirymaxAgent[%s] loaded from %s (role=%s, syscall=%s, degraded=%s)",
             self.agent_id,
@@ -236,9 +236,10 @@ class AirymaxAgent(LLMAgent):
     def _register_subagent_tools(self) -> None:
         """注册子代理三工具（agent_spawn/agent_wait/agent_cancel）。
 
-        管理器按执行作用域惰性创建：工具注册发生在 ``__init__``（须在
-        ``initialize`` 前完成），而 workspace 与父任务标识要等 ``execute``
-        拿到上下文才确定。作用域外调用显式拒绝，不猜测默认目录。
+        仅在任务作用域内注册：workspace 与父任务标识要等 ``execute``
+        拿到上下文才确定，作用域外的构造期不应持有派生能力。作用域
+        结束时由 ``_end_subagent_scope`` 移除，构造期工具集保持角色与
+        目录原样（降级态仍为空集）。作用域外若被调用，显式拒绝。
         """
         for name, schema in (
             ("agent_spawn", SPAWN_SCHEMA),
@@ -297,15 +298,23 @@ class AirymaxAgent(LLMAgent):
             depth=self._subagent_depth,
             role_resolver=resolve_role,
         )
+        self._register_subagent_tools()
         logger.debug(
             "AirymaxAgent[%s] subagent scope %s opened (readonly=%s)",
             self.agent_id, task_id, not self._has_write_tools(),
         )
 
     def _end_subagent_scope(self) -> None:
-        """结束作用域：终止所有存活子进程（取消级联）。"""
+        """结束作用域：移除派生工具并终止所有存活子进程（取消级联）。"""
         manager = self._subagent_manager
         self._subagent_manager = None
+        for name in ("agent_spawn", "agent_wait", "agent_cancel"):
+            tools = getattr(self, "_tools", None)
+            if isinstance(tools, dict):
+                tools.pop(name, None)
+            schemas = getattr(self, "_tool_schemas", None)
+            if isinstance(schemas, dict):
+                schemas.pop(name, None)
         if manager is not None:
             manager.shutdown()
         self._task_scope_id = None

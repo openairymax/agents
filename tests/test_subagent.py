@@ -92,12 +92,12 @@ def test_child_completes_with_metrics(tmp_path):
     manager = _manager(tmp_path)
     try:
         spawned = manager.spawn({"role": "coding", "input": "实现一个求和函数"})
-        assert spawned["status"] == "running"
+        assert spawned["status"] == "running", spawned.get("error") or spawned
         assert spawned["readonly"] is True
 
         result = _terminal(manager, spawned["child_id"])
 
-        assert result["status"] == "completed", result
+        assert result["status"] == "completed", result.get("error") or result
         assert result["output"]
         assert isinstance(result["tokens"], int)
         assert result["elapsed_ms"] >= 0
@@ -154,6 +154,7 @@ def test_writable_requires_parent_authority(tmp_path):
     try:
         spawned = manager.spawn({"role": "coding", "input": "任务", "writable": True})
 
+        assert spawned["status"] == "running", spawned.get("error") or spawned
         assert spawned["readonly"] is True
     finally:
         manager.shutdown()
@@ -166,7 +167,7 @@ def test_parallel_children_one_fails_parent_summarizes(tmp_path):
         first = manager.spawn({"role": "coding", "input": "子任务 A"})
         second = manager.spawn({"role": "not-a-role", "input": "子任务 B"})
 
-        assert first["status"] == "running"
+        assert first["status"] == "running", first.get("error") or first
         assert second["status"] == "rejected"
 
         first_result = _terminal(manager, first["child_id"])
@@ -182,15 +183,16 @@ def test_parallel_children_one_fails_parent_summarizes(tmp_path):
             "tokens": first_result["tokens"],
         }
 
-        assert summary["failed"] == 1
-        assert summary["children"][0]["status"] == "completed"
+        assert summary["failed"] == 1, summary
+        assert summary["children"][0]["status"] == "completed", first_result
         assert summary["children"][0]["output"]
         assert summary["children"][1]["error"]
 
         # 父进程与编排器仍可继续工作（失败不拖垮父任务）
         third = manager.spawn({"role": "coding", "input": "子任务 C"})
-        assert third["status"] == "running"
-        assert _terminal(manager, third["child_id"])["status"] == "completed"
+        assert third["status"] == "running", third.get("error") or third
+        third_result = _terminal(manager, third["child_id"])
+        assert third_result["status"] == "completed", third_result.get("error") or third_result
     finally:
         manager.shutdown()
 
@@ -211,7 +213,8 @@ def test_child_crash_is_contained(tmp_path):
     recovered = _manager(tmp_path)
     try:
         again = recovered.spawn({"role": "coding", "input": "恢复后的任务"})
-        assert _terminal(recovered, again["child_id"])["status"] == "completed"
+        outcome = _terminal(recovered, again["child_id"])
+        assert outcome["status"] == "completed", outcome.get("error") or outcome
     finally:
         recovered.shutdown()
 
@@ -262,21 +265,31 @@ def test_wait_slice_returns_running(tmp_path, monkeypatch):
         manager.shutdown()
 
 
-def test_depth_limits_tool_registration(monkeypatch):
-    """子代理不再持有派生工具：深度上限是递归防护的第一道闸。"""
+def test_depth_limits_tool_registration(tmp_path, monkeypatch):
+    """派生工具只在任务作用域内存在，深度上限处不注册。"""
+    from types import SimpleNamespace
+
     from airymax_agents import get_agent
 
     monkeypatch.setenv("AIRY_SUBAGENT_DEPTH", "1")
     child = get_agent("coding")
+    child.workspace_dir = str(tmp_path)
+    child._begin_subagent_scope(SimpleNamespace(task_id="task-c", session_id=None))
     assert "agent_spawn" not in child._tools
+    child._end_subagent_scope()
 
     monkeypatch.delenv("AIRY_SUBAGENT_DEPTH")
     parent = get_agent("coding")
+    parent.workspace_dir = str(tmp_path)
+    assert "agent_spawn" not in parent._tools
+    parent._begin_subagent_scope(SimpleNamespace(task_id="task-p", session_id=None))
     assert {"agent_spawn", "agent_wait", "agent_cancel"} <= set(parent._tools)
+    parent._end_subagent_scope()
+    assert "agent_spawn" not in parent._tools
 
 
 def test_task_scope_opens_and_closes_manager(tmp_path, monkeypatch):
-    """每次任务建立独立作用域，退出时回收（取消级联入口）。"""
+    """每次任务建立独立作用域，退出时连同派生工具一起回收。"""
     from types import SimpleNamespace
 
     from airymax_agents import get_agent
@@ -284,10 +297,13 @@ def test_task_scope_opens_and_closes_manager(tmp_path, monkeypatch):
     monkeypatch.delenv("AIRY_SUBAGENT_DEPTH", raising=False)
     agent = get_agent("coding")
     agent.workspace_dir = str(tmp_path)
+    assert "agent_spawn" not in agent._tools
 
     agent._begin_subagent_scope(SimpleNamespace(task_id="task-9", session_id="sess-9"))
     assert agent._subagent_manager is not None
     assert agent._subagent_manager.depth == 0
+    assert "agent_spawn" in agent._tools
 
     agent._end_subagent_scope()
     assert agent._subagent_manager is None
+    assert "agent_spawn" not in agent._tools
