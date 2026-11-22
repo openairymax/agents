@@ -178,6 +178,46 @@ def _entry_by_model_id(model_id: str) -> Optional[Dict[str, str]]:
     return None
 
 
+def _is_local(entry: Optional[Dict[str, str]]) -> bool:
+    """判定 models 表条目是否为本地运行时（免 key 直连）。"""
+    if not entry:
+        return False
+    if (entry.get("mode") or "").strip().lower() == "local":
+        return True
+    return (entry.get("api_format") or "").strip().lower() == "local"
+
+
+def _local_pick(model: str, provider: Optional[str]) -> Optional[Dict[str, str]]:
+    """选出免 key 直连的本地条目。
+
+    显式指定厂商时只认该厂商条目（不得把请求改投本机端点）；
+    否则优先当前模型所在条目，再退回表中首个本地条目。
+    """
+    if provider:
+        entry = _match_model_entry(provider)
+        return entry if _is_local(entry) else None
+    entry = _entry_by_model_id(model) if model else None
+    if _is_local(entry):
+        return entry
+    for candidate in _load_models_table():
+        if _is_local(candidate) and (candidate.get("base_url") or "").strip():
+            return candidate
+    return None
+
+
+def _build_local(entry: Dict[str, str]) -> "LLMClient":
+    """按本地条目构造免 key 客户端（本地运行时忽略鉴权头）。"""
+    model_id = (entry.get("model_id") or "").strip() or "local-model"
+    base_url = (entry.get("base_url") or "").strip().rstrip("/")
+    if not getattr(_build_local, "_logged", False):
+        print(
+            f"[orchestration] local 直连 {base_url}（model={model_id}，免 key）",
+            file=sys.stderr,
+        )
+        _build_local._logged = True  # type: ignore[attr-defined]
+    return LLMClient(default_model=model_id, base_url=base_url, local=True)
+
+
 def _yaml_top_scalar(key: str) -> str:
     """读取 model.yaml 顶层无缩进标量（如 ``default_model:``）。"""
     for path in _model_yaml_candidates():
@@ -338,8 +378,12 @@ class LLMClient:
         base_url: Optional[str] = None,
         default_model: Optional[str] = None,
         timeout: float = 60.0,
+        local: bool = False,
     ) -> None:
-        self.api_key = _resolve_api_key(api_key)
+        # 本地直连（llama-server 等）不接受鉴权：显式跳过 key 解析，
+        # 避免把云端凭据发给本机端点，也不因「无 key」被误判为离线。
+        self.local = local
+        self.api_key = "" if local else _resolve_api_key(api_key)
         self.default_model = resolve_default_model(default_model)
         self.base_url = resolve_base_url(base_url, model=self.default_model)
         self.timeout = timeout
@@ -387,10 +431,9 @@ class LLMClient:
             payload["tools"] = tools
             payload["tool_choice"] = tool_choice
 
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}",
-        }
+        headers = {"Content-Type": "application/json"}
+        if not self.local:
+            headers["Authorization"] = f"Bearer {self.api_key}"
 
         # aiohttp 懒导入：mock 模式或未装 aiohttp 时也能 import 本模块
         try:
@@ -639,13 +682,37 @@ def make_llm_client(
     if force_mock:
         return MockLLMClient(default_model=default_model or "mock-model")
 
+    # 显式厂商（参数或环境变量）决定端点归属：此时不得把请求改投本机
+    pinned = (provider or "").strip() or os.environ.get("AIRY_LLM_PROVIDER", "").strip()
     provider = resolve_provider(provider)
     resolved_key = _resolve_api_key(api_key, provider)
+    model = resolve_default_model(default_model, provider)
+
+    # 当前模型条目本身是本地运行时：本地优先且免 key（云端凭据不得发给本机端点）。
+    entry = _match_model_entry(pinned) if pinned else _entry_by_model_id(model)
+    if _is_local(entry):
+        return _build_local(entry)
+
     if resolved_key:
-        model = resolve_default_model(default_model, provider)
         resolved_url = resolve_base_url(base_url, provider, model)
         return LLMClient(default_model=model, base_url=resolved_url,
                          api_key=resolved_key)
+
+    # 无 key：若表中声明了本地条目，则免 key 直连本地运行时，
+    # 纯净离线环境也必须走真实推理而非模板文本。
+    local_entry = _local_pick(model, pinned or None)
+    if local_entry is not None:
+        return _build_local(local_entry)
+
+    # 无 key 但厂商端点本身免鉴权（ollama / 自定义本地网关）：直连而非回落 mock。
+    if not provider_key_env(provider):
+        resolved_url = resolve_base_url(base_url, provider, model)
+        print(
+            f"[orchestration] 端点免鉴权，直连 {resolved_url}（provider={provider}）",
+            file=sys.stderr,
+        )
+        return LLMClient(default_model=model, base_url=resolved_url,
+                         api_key="", local=True)
 
     # 无 key：mock，但打印一次提示 (仅首次)。
     # 输出到 stderr：避免污染 agent_d 子进程的 stdout 行分隔 JSON 协议。

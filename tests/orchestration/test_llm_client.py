@@ -172,9 +172,27 @@ class TestMakeLLMClient:
         assert isinstance(client, LLMClient)
         assert client.api_key == "ds-key"
 
-    def test_mock_when_no_key(self, monkeypatch):
-        for var in ("OPENAI_API_KEY", "DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY"):
-            monkeypatch.delenv(var, raising=False)
+    def test_local_direct_when_no_key(self, monkeypatch):
+        """纯净离线环境：表内声明本地运行时即免 key 直连（不得回落 mock）。"""
+        _clear_llm_env(monkeypatch)
+        client = make_llm_client()
+        assert isinstance(client, LLMClient)
+        assert client.local is True
+        assert client.api_key == ""
+        assert client.base_url == "http://127.0.0.1:11435/v1"
+
+    def test_local_entry_wins_over_cloud_key(self, monkeypatch):
+        """模型条目为本地时，云端 key 不得被发往本机端点。"""
+        _clear_llm_env(monkeypatch)
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "ds-key")
+        client = make_llm_client(default_model="qwen3-0.6b-q8_0")
+        assert isinstance(client, LLMClient)
+        assert client.local is True
+        assert client.api_key == ""
+
+    def test_mock_when_no_key_and_no_local(self, monkeypatch):
+        """无 key 且表中无本地条目时才回落 mock。"""
+        _disable_model_yaml(monkeypatch)
         client = make_llm_client()
         assert isinstance(client, MockLLMClient)
 

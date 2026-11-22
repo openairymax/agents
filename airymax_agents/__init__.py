@@ -13,7 +13,8 @@
     await agent.initialize()
     result = await agent.execute("写一份待办应用 PRD", AgentContext("pm-001"))
 
-无 ``OPENAI_API_KEY`` 时自动启用 :class:`MockLLMClient`，端到端可跑通。
+模型连接按 ``$AIRY_HOME/config/model.yaml`` 解析：本地条目免 key 直连，
+无本地条目且无任何厂商 key 时才启用 :class:`MockLLMClient`（离线兜底）。
 """
 
 from __future__ import annotations
