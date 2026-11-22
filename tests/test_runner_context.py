@@ -65,3 +65,35 @@ async def test_no_history_carries_nothing():
 
     assert agent.contexts[0].history == history
     assert agent.contexts[1].history == []
+
+
+@pytest.mark.asyncio
+async def test_parent_task_id_is_per_request():
+    """父任务标识随请求落地，顶层任务不带上一轮的父任务。"""
+    agent = _EchoAgent()
+
+    await _execute_once(agent, "a-1", "子任务", "s-1", None, "task-parent")
+    await _execute_once(agent, "a-1", "顶层任务", "s-1", None)
+
+    assert agent.contexts[0].parent_task_id == "task-parent"
+    assert agent.contexts[1].parent_task_id is None
+
+
+@pytest.mark.asyncio
+async def test_usage_metrics_are_returned():
+    """成功响应回传 TaskResult.metrics，供父任务汇总子任务用量。"""
+    from orchestration.core.agent import TaskResult
+
+    class _UsageAgent:
+        async def execute(self, input_data, context):
+            return TaskResult(
+                success=True,
+                output="done",
+                metrics={"model": "mock-model", "rounds": 1, "tokens": 12},
+            )
+
+    resp = json.loads(await _execute_once(_UsageAgent(), "a-1", "任务", "s-1"))
+
+    assert resp["success"] is True
+    assert resp["metrics"]["tokens"] == 12
+    assert resp["metrics"]["rounds"] == 1
