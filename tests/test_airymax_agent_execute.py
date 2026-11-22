@@ -233,11 +233,16 @@ def test_get_agent_returns_correct_class(mock_llm):
     assert agent.agent_id == "architect_v1"
 
 
-def test_get_agent_unknown_role_normalizes_to_coding(mock_llm):
-    """get_agent 传入未知 role 时归一化到 coding 并返回 AirymaxAgent 实例。"""
-    agent = get_agent("unknown_role", llm=mock_llm)
+def test_get_agent_rejects_unknown_role(mock_llm):
+    """未知 role 必须显式失败，不得静默当成 coding 执行（S-P1-15）。"""
+    with pytest.raises(ValueError, match="unknown agent role"):
+        get_agent("unknown_role", llm=mock_llm)
+
+
+def test_get_agent_binds_alias(mock_llm):
+    """已登记别名仍绑定到具体执行体（策略 → 机制）。"""
+    agent = get_agent("creator", llm=mock_llm)
     assert isinstance(agent, CodingAgent)
-    assert isinstance(agent, AirymaxAgent)
 
 
 def test_agent_registry_has_eleven_roles():

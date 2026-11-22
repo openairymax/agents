@@ -19,10 +19,7 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any, Dict, List, Optional
-
-logger = logging.getLogger(__name__)
 
 from .base import AirymaxAgent
 from .product_manager.agent import ProductManagerAgent
@@ -57,7 +54,7 @@ AGENT_REGISTRY: Dict[str, type] = {
 #: 认知规划器（reactive 规则表 / GRAD s2 LLM 计划 / 降级路径）产出的是
 #: 抽象角色（creator/verifier/analyst...），而 agent 运行时只注册具体
 #: 工程角色。此处作为「策略 → 机制」的绑定层，将抽象角色归一化到
-#: 最近的执行体；LLM 计划可能产出任意角色串，因此保留兜底。
+#: 最近的执行体；映射表之外的字符串由驱动层显式兜底并留痕。
 ROLE_ALIASES: Dict[str, str] = {
     "creator": "coding",
     "generator": "coding",
@@ -74,8 +71,20 @@ ROLE_ALIASES: Dict[str, str] = {
     "summarizer": "product_manager",
 }
 
-#: 兜底执行体：未知角色归一化至此，保证计划总能被驱动、不因角色失配中断
+#: 兜底执行体：仅用于**驱动**路径（计划缺角色信息时保证节点可执行）
 ROLE_FALLBACK = "coding"
+
+
+def resolve_role(role: str) -> Optional[str]:
+    """严格解析角色：注册名原样返回，别名映射到具体执行体，未登记返回 None。
+
+    与 agentrt ``agent_vocab_resolve`` 同语义（fail-closed）：未知角色不得
+    被静默当成某个执行体，否则会以错误的能力集执行任务且无迹可查。
+    需要「计划总能被驱动」的调用方自行使用 :data:`ROLE_FALLBACK` 并留痕。
+    """
+    if role in AGENT_REGISTRY:
+        return role
+    return ROLE_ALIASES.get(role)
 
 
 def get_agent(
@@ -89,6 +98,7 @@ def get_agent(
     参数:
         role:              角色 (product_manager/architect/backend/frontend/devops/
                             security/tester/coding/data_engineer/reviewer/analyst)
+                           或 :data:`ROLE_ALIASES` 中的抽象角色别名
         llm:               LLM 客户端；None 时用 :func:`make_llm_client`
         contract_overrides: 契约字段覆盖 (例如临时换 model)
         syscall_proxy:     agentrt 系统调用代理 (SyscallProxy)；
@@ -96,14 +106,16 @@ def get_agent(
 
     返回:
         已就绪的 Agent 实例 (尚未调用 :meth:`initialize`)
+
+    异常:
+        ValueError: role 既非注册名也非已登记别名（不猜测调用方意图）
     """
-    cls = AGENT_REGISTRY.get(role)
-    if cls is None:
-        # 策略→机制 绑定层：抽象角色归一化到具体执行体
-        resolved = ROLE_ALIASES.get(role, ROLE_FALLBACK)
-        logger.warning("unknown agent role %r, normalized to %r", role, resolved)
-        cls = AGENT_REGISTRY[resolved]
-    return cls(
+    resolved = resolve_role(role)
+    if resolved is None:
+        raise ValueError(
+            f"unknown agent role {role!r}; valid roles: {', '.join(AGENT_REGISTRY)}"
+        )
+    return AGENT_REGISTRY[resolved](
         llm=llm,
         contract_overrides=contract_overrides,
         syscall_proxy=syscall_proxy,
@@ -120,6 +132,7 @@ __all__ = [
     "AGENT_REGISTRY",
     "ROLE_ALIASES",
     "ROLE_FALLBACK",
+    "resolve_role",
     "get_agent",
     "list_agents",
     "ProductManagerAgent",

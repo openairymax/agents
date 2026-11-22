@@ -120,19 +120,28 @@ def _load_role_vocab(syscall_proxy: Optional[Any]) -> None:
 
 
 def _canonical_role(role: str) -> str:
-    """角色归一化：别名 → 具体执行体；未知 → 兜底（SSoT 语义）。"""
+    """角色归一化（驱动语义）：别名 → 具体执行体，未登记 → 兜底并留痕。
+
+    与 ``get_agent`` 的严格解析分工明确：这里保证计划节点总能被驱动；
+    真正构造执行体时不再二次兜底，避免把未知角色悄悄当成 coding 跑。
+    """
     if _ROLE_VOCAB:
         for entry in _ROLE_VOCAB.get("aliases", []):
             if isinstance(entry, dict) and entry.get("alias") == role:
                 return entry["role"]
         if role in _ROLE_VOCAB.get("roles", []):
             return role
-        return _ROLE_VOCAB.get("fallback", "coding")
+        fallback = _ROLE_VOCAB.get("fallback", "coding")
+        logger.warning("unknown agent role %r, driven as %r", role, fallback)
+        return fallback
     from airymax_agents import ROLE_ALIASES, ROLE_FALLBACK, AGENT_REGISTRY
 
     if role in AGENT_REGISTRY:
         return role
-    return ROLE_ALIASES.get(role, ROLE_FALLBACK)
+    if role in ROLE_ALIASES:
+        return ROLE_ALIASES[role]
+    logger.warning("unknown agent role %r, driven as %r", role, ROLE_FALLBACK)
+    return ROLE_FALLBACK
 
 
 def _readonly_roles() -> frozenset:
