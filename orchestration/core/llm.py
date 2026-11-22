@@ -47,6 +47,7 @@ from .llm_cfg import (
     resolve_base_url,
     resolve_default_model,
     resolve_provider,
+    resolve_sampling,
 )
 
 
@@ -97,8 +98,9 @@ class LLMClient:
         model: Optional[str] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: str = "auto",
-        temperature: float = 0.7,
+        temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        top_p: Optional[float] = None,
     ) -> Dict[str, Any]:
         """调用 ``POST {base_url}/chat/completions``，返回 OpenAI 响应 dict。
 
@@ -121,12 +123,20 @@ class LLMClient:
         ``max_tokens``：输出上限（显式参数 > ``$AIRY_LLM_MAX_TOKENS`` > 不发送）。
         不发送时沿用厂商默认，长生成可能被截断（finish_reason=length），
         调用方必须检查 finish_reason 而非假定响应完整。
+
+        采样参数：显式参数 > model.yaml 条目字段 > 模块级默认（S-P1-12）。
+        ``top_p`` 缺省不下发，保持厂商默认。
         """
+        target = model or self.default_model
+        cfg_temp, cfg_top_p = resolve_sampling(target)
         payload: Dict[str, Any] = {
-            "model": model or self.default_model,
+            "model": target,
             "messages": messages,
-            "temperature": temperature,
+            "temperature": cfg_temp if temperature is None else temperature,
         }
+        resolved_top_p = cfg_top_p if top_p is None else top_p
+        if resolved_top_p is not None:
+            payload["top_p"] = resolved_top_p
         resolved_max_tokens = _resolve_max_tokens(max_tokens)
         if resolved_max_tokens:
             payload["max_tokens"] = resolved_max_tokens

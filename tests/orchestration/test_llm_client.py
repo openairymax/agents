@@ -341,3 +341,54 @@ class TestChatPayload:
         monkeypatch.setenv("AIRY_LLM_MAX_TOKENS", "1024")
         self._run_chat(monkeypatch, captured, max_tokens=4096)
         assert captured["json"]["max_tokens"] == 4096
+
+    def test_sampling_defaults_sent(self, monkeypatch):
+        """条目未声明采样参数时使用模块级默认，且不下发 top_p。"""
+        captured: dict = {}
+        monkeypatch.setattr(llm_cfg, "_load_models_table", lambda: [])
+        monkeypatch.setattr(llm_cfg, "resolve_provider", lambda *a, **k: "deepseek")
+        self._run_chat(monkeypatch, captured)
+        assert captured["json"]["temperature"] == 0.7
+        assert "top_p" not in captured["json"]
+
+    def test_sampling_from_model_entry(self, monkeypatch):
+        """model.yaml 条目显式声明的 temperature/top_p 随请求下发。"""
+        captured: dict = {}
+        monkeypatch.setattr(llm_cfg, "_load_models_table", lambda: [
+            {"model_id": "deepseek-flash", "temperature": "0.15", "top_p": "0.8"},
+        ])
+        self._run_chat(monkeypatch, captured)
+        assert captured["json"]["temperature"] == 0.15
+        assert captured["json"]["top_p"] == 0.8
+
+    def test_explicit_sampling_wins(self, monkeypatch):
+        """调用方显式参数优先于条目与默认（0.0 也必须保留）。"""
+        captured: dict = {}
+        monkeypatch.setattr(llm_cfg, "_load_models_table", lambda: [])
+        monkeypatch.setattr(llm_cfg, "resolve_provider", lambda *a, **k: "deepseek")
+        self._run_chat(monkeypatch, captured, temperature=0.0, top_p=0.5)
+        assert captured["json"]["temperature"] == 0.0
+        assert captured["json"]["top_p"] == 0.5
+
+
+class TestResolveSampling:
+    """S-P1-12：采样默认值单点解析。"""
+
+    def test_defaults_when_no_entry(self, monkeypatch):
+        monkeypatch.setattr(llm_cfg, "_load_models_table", lambda: [])
+        monkeypatch.setattr(llm_cfg, "resolve_provider", lambda *a, **k: "deepseek")
+        assert llm_cfg.resolve_sampling("absent-model") == (0.7, None)
+
+    def test_entry_values_win(self, monkeypatch):
+        monkeypatch.setattr(llm_cfg, "_load_models_table", lambda: [
+            {"name": "local", "model_id": "qwen3-4b",
+             "temperature": "0.2", "top_p": "0.9"},
+        ])
+        assert llm_cfg.resolve_sampling("qwen3-4b") == (0.2, 0.9)
+
+    def test_invalid_value_falls_back(self, monkeypatch):
+        """非法数值不得把一个坏配置变成请求失败，退回默认。"""
+        monkeypatch.setattr(llm_cfg, "_load_models_table", lambda: [
+            {"model_id": "m", "temperature": "hot"},
+        ])
+        assert llm_cfg.resolve_sampling("m") == (0.7, None)

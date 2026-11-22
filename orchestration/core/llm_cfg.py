@@ -38,6 +38,11 @@ KEY_FALLBACK_CHAIN: Tuple[str, ...] = (
     "OPENAI_API_KEY", "DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY",
 )
 
+# 采样默认值（S-P1-12）：模型条目未声明时的唯一数值来源。
+# top_p 缺省不下发，保持厂商默认；条目显式声明才随请求发送。
+SAMPLING_DEFAULT_TEMPERATURE: float = 0.7
+SAMPLING_DEFAULT_TOP_P: Optional[float] = None
+
 
 def get_supported_providers() -> List[str]:
     """返回支持的厂商清单（含自定义未知名称则列出）。"""
@@ -113,7 +118,8 @@ def _load_models_table() -> List[Dict[str, str]]:
             key, _, val = line.partition(":")
             key = key.strip()
             if key in ("model_id", "api_key_env", "base_url", "mode",
-                       "api_format", "context_window", "tool_rounds"):
+                       "api_format", "context_window", "tool_rounds",
+                       "temperature", "top_p"):
                 cur[key] = _yaml_scalar(val)
         if cur:
             entries.append(cur)
@@ -167,6 +173,34 @@ def _entry_by_model_id(model_id: str) -> Optional[Dict[str, str]]:
         if (entry.get("model_id") or "").strip().casefold() == mid:
             return entry
     return None
+
+
+def _entry_float(entry: Optional[Dict[str, str]], key: str) -> Optional[float]:
+    """取模型条目的可选浮点字段；缺省/非法返回 None。"""
+    if not entry:
+        return None
+    raw = (entry.get(key) or "").strip()
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def resolve_sampling(
+    model: Optional[str] = None, provider: Optional[str] = None
+) -> Tuple[float, Optional[float]]:
+    """解析采样参数：模型条目显式值 > 全局默认（S-P1-12 单一来源）。"""
+    entry = _entry_by_model_id(model) if model else None
+    if entry is None:
+        entry = _match_model_entry(provider or resolve_provider())
+    temp = _entry_float(entry, "temperature")
+    top_p = _entry_float(entry, "top_p")
+    return (
+        SAMPLING_DEFAULT_TEMPERATURE if temp is None else temp,
+        SAMPLING_DEFAULT_TOP_P if top_p is None else top_p,
+    )
 
 
 def _is_local(entry: Optional[Dict[str, str]]) -> bool:
