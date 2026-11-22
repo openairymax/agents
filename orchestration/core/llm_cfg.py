@@ -32,6 +32,12 @@ PROVIDER_PROBE_ORDER: Tuple[str, ...] = (
     "deepseek", "glm", "qwen", "moonshot", "siliconflow", "spark", "minimax", "openai",
 )
 
+# 全局 key fallback 链（SSoT：顺序即优先级）。
+# 配置一致性测试直接读取本常量，不再从函数体内正则抓取。
+KEY_FALLBACK_CHAIN: Tuple[str, ...] = (
+    "OPENAI_API_KEY", "DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY",
+)
+
 
 def get_supported_providers() -> List[str]:
     """返回支持的厂商清单（含自定义未知名称则列出）。"""
@@ -289,7 +295,7 @@ def _resolve_api_key(explicit: Optional[str] = None, provider: Optional[str] = N
             val = os.environ.get(key_env, "").strip()
             if val:
                 return val
-    for var in ("OPENAI_API_KEY", "DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY"):
+    for var in KEY_FALLBACK_CHAIN:
         val = os.environ.get(var, "").strip()
         if val:
             return val
