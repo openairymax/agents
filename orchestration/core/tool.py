@@ -23,6 +23,15 @@ def tool_timeout() -> float:
     return value if value > 0 else DEFAULT_TOOL_TIMEOUT_S
 
 
+# 写操作工具集合（唯一来源）：只读角色隔离与子代理默认只读都以此为准。
+# 工具清单由 tool_d 目录生成（S-P1-15），凡改文件/改仓库/改系统状态的
+# 一律列入本表；新增写工具必须同步追加，否则只读角色会被目录自动放行。
+WRITE_TOOLS = frozenset({
+    "fs_write", "fs_edit", "fs_delete", "shell_run",
+    "git_exec", "git_apply", "tool_create", "priv_exec",
+})
+
+
 class ToolCategory(Enum):
     '''工具类别枚举'''
     INPUT_OUTPUT = "input_output"      # 输入输出

@@ -8,22 +8,16 @@
 
   - 请求（从 stdin 读取）::
 
-      {"agent_id": "...", "input": "...", "session_id": "...",
-       "parent_task_id": "...", "history": [...]}
+      {"agent_id": "...", "input": "...", "session_id": "...", "history": [...]}
 
-    ``session_id``、``parent_task_id`` 与 ``history`` 均可选：前者标识
-    会话，``parent_task_id`` 标明本请求是哪个父任务派生的子代理任务
-    （顶层任务缺省），后者为 OpenAI messages 形式的历史轮次
-    （user/assistant），在本次输入前重放以支持多轮追问。每次请求独立
-    构造上下文，不跨请求复用。
+    ``session_id`` 与 ``history`` 均可选：前者标识会话，后者为
+    OpenAI messages 形式的历史轮次（user/assistant），在本次输入前
+    重放以支持多轮追问。每次请求独立构造上下文，不跨请求复用。
 
   - 响应（写入 stdout）::
 
-      {"success": true, "output": "...", "metrics": {...}}
+      {"success": true, "output": "..."}
       {"success": false, "error": "..."}
-
-    ``metrics``（model/rounds/tokens/elapsed_ms）仅随成功响应出现，
-    供父代理汇总子任务用量；agent_d 只消费 ``output``，不受影响。
 
 生命周期:
 
@@ -53,6 +47,8 @@ import os
 import re
 import sys
 from typing import Any, Optional, Tuple
+
+from orchestration.core.tool import WRITE_TOOLS
 
 logger = logging.getLogger("runner")
 
@@ -107,13 +103,8 @@ def _content_declares_failure(text: str) -> bool:
 # agent_vocab SSoT），下列本地表仅为 agent_d 不可达时的启动回退。
 _READONLY_LOCAL = frozenset({"tester", "reviewer"})
 
-# 写操作工具：从只读角色的工具注册表与 schema 中移除。工具清单由 tool_d
-# 目录生成（S-P1-15），故凡是会改文件/改仓库/改系统状态的一律列入本表，
-# 新增写工具时必须同步追加，否则只读角色会被目录自动放行。
-WRITE_TOOLS = frozenset({
-    "fs_write", "fs_edit", "fs_delete", "shell_run",
-    "git_exec", "git_apply", "tool_create", "priv_exec",
-})
+# 写操作工具：从只读角色的工具注册表与 schema 中移除。集合定义在
+# orchestration.core.tool（唯一来源），只读隔离与子代理默认只读共用。
 
 # 运行期角色词汇表（agent.vocab 返回值），None 表示未加载/加载失败。
 _ROLE_VOCAB: Optional[dict] = None
@@ -214,19 +205,11 @@ def _build_syscall_proxy() -> Tuple[Optional[Any], str]:
         return None, str(e)[:120]
 
 
-def _make_response(output: str = "", success: bool = True, error: str = "",
-                   metrics: Optional[dict] = None) -> str:
-    """构建单行 JSON 响应。
-
-    ``metrics``（model/rounds/tokens/elapsed_ms）随成功响应回传：子代理
-    需要把 token 与耗时汇总给父任务；agent_d 的 inv_take 只取 output，
-    不会消费该字段（对既有调用方向后兼容）。
-    """
+def _make_response(output: str = "", success: bool = True, error: str = "") -> str:
+    """构建单行 JSON 响应。"""
     resp: dict = {"success": success}
     if success:
         resp["output"] = output
-        if metrics:
-            resp["metrics"] = metrics
     else:
         resp["error"] = error
     return json.dumps(resp, ensure_ascii=False)
@@ -255,20 +238,17 @@ def _make_ready(role: str, degraded: Optional[list] = None,
 
 async def _execute_once(agent: Any, agent_id: str, user_input: str,
                         session_id: Optional[str] = None,
-                        history: Optional[list] = None,
-                        parent_task_id: Optional[str] = None) -> str:
+                        history: Optional[list] = None) -> str:
     """执行一次 Agent 调用，返回 JSON 响应字符串。
 
-    上下文按请求独立构造：会话标识、父任务与历史随请求携带（缺省即
-    无会话、无历史、顶层任务），不复用上一请求的上下文（S-P1-19
-    跨请求串话根因）。
+    上下文按请求独立构造：会话标识与历史随请求携带（缺省即无会话、
+    无历史），不复用上一请求的上下文（S-P1-19 跨请求串话根因）。
     """
     from orchestration.core.agent import AgentContext
 
     ctx = AgentContext(
         agent_id=agent_id,
         session_id=session_id,
-        parent_task_id=parent_task_id,
         history=list(history or []),
     )
     result = await agent.execute(user_input, ctx)
@@ -286,12 +266,7 @@ async def _execute_once(agent: Any, agent_id: str, user_input: str,
             success=False,
             error="agent reported it could not complete the task: " + str(output)[:200],
         )
-    metrics = getattr(result, "metrics", None)
-    return _make_response(
-        output=str(output),
-        success=True,
-        metrics=metrics if isinstance(metrics, dict) else None,
-    )
+    return _make_response(output=str(output), success=True)
 
 
 def main() -> int:
@@ -370,7 +345,6 @@ def main() -> int:
             agent_id = req.get("agent_id", "unknown")
             user_input = req.get("input", "")
             session_id = req.get("session_id") or None
-            parent_task_id = req.get("parent_task_id") or None
             history = req.get("history")
             if not isinstance(history, list):
                 history = None
@@ -407,11 +381,7 @@ def main() -> int:
         logger.debug("runner workspace: %s", agent.workspace_dir or _RUNNER_BASE_CWD)
 
         try:
-            resp = asyncio.run(
-                _execute_once(
-                    agent, agent_id, user_input, session_id, history, parent_task_id
-                )
-            )
+            resp = asyncio.run(_execute_once(agent, agent_id, user_input, session_id, history))
         except Exception as e:
             logger.exception("execute failed (agent_id=%s)", agent_id)
             resp = _make_response(success=False, error=f"execute failed: {e}")
