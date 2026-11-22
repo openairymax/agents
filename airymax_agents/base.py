@@ -31,13 +31,30 @@ import json
 import logging
 import os
 import sys
+import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 from orchestration.agents import LLMAgent
 from orchestration.core.llm import make_llm_client
+from orchestration.core.subagent import (
+    CANCEL_SCHEMA,
+    SPAWN_SCHEMA,
+    WAIT_SCHEMA,
+    SubagentManager,
+)
+from orchestration.core.tool import WRITE_TOOLS
 
 logger = logging.getLogger(__name__)
+
+
+def _env_int(name: str, default: int) -> int:
+    """读取非负整数环境变量；缺省或非法回退默认值（深度计数用）。"""
+    try:
+        value = int(os.environ.get(name, ""))
+    except ValueError:
+        return default
+    return value if value >= 0 else default
 
 
 #: SyscallProxy 缺失时注入系统提示词的降级说明（显式告知模型无工具可用）。
@@ -115,6 +132,15 @@ class AirymaxAgent(LLMAgent):
         self.workspace_dir: Optional[str] = None
         # 注入代理后注册 tool_d 内置工具（注册失败降级为纯 LLM，不阻断）
         self._register_builtin_tools()
+        # 子代理（§25.6）：父任务派生隔离子进程。环境里的深度计数由父
+        # 进程在 spawn 时注入；达到上限后不再注册子代理工具，使子代理
+        # 无法继续派生（递归防护的第一道闸，管理器内还有第二道）。
+        self._subagent_depth = _env_int("AIRY_SUBAGENT_DEPTH", 0)
+        self._subagent_max_depth = _env_int("AIRY_SUBAGENT_MAX_DEPTH", 1)
+        self._task_scope_id: Optional[str] = None
+        self._subagent_manager: Optional[SubagentManager] = None
+        if self._subagent_depth < self._subagent_max_depth:
+            self._register_subagent_tools()
         logger.debug(
             "AirymaxAgent[%s] loaded from %s (role=%s, syscall=%s, degraded=%s)",
             self.agent_id,
@@ -207,6 +233,83 @@ class AirymaxAgent(LLMAgent):
                 self.agent_id, registered,
             )
 
+    def _register_subagent_tools(self) -> None:
+        """注册子代理三工具（agent_spawn/agent_wait/agent_cancel）。
+
+        管理器按执行作用域惰性创建：工具注册发生在 ``__init__``（须在
+        ``initialize`` 前完成），而 workspace 与父任务标识要等 ``execute``
+        拿到上下文才确定。作用域外调用显式拒绝，不猜测默认目录。
+        """
+        for name, schema in (
+            ("agent_spawn", SPAWN_SCHEMA),
+            ("agent_wait", WAIT_SCHEMA),
+            ("agent_cancel", CANCEL_SCHEMA),
+        ):
+            try:
+                self.register_tool(name, self._make_subagent_dispatcher(name), schema=schema)
+            except Exception as e:  # noqa: BLE001 - 单个工具注册失败不阻断其余能力
+                logger.warning(
+                    "AirymaxAgent[%s] register subagent tool '%s' failed (non-fatal): %s",
+                    self.agent_id, name, e,
+                )
+
+    def _make_subagent_dispatcher(self, name: str) -> Callable[[Dict[str, Any]], Any]:
+        """构造子代理工具的 dispatch 闭包（按作用域取管理器）。"""
+        action = name[len("agent_"):]
+
+        def _dispatch(params: Dict[str, Any]) -> Any:
+            manager = self._subagent_manager
+            if manager is None:
+                return {
+                    "child_id": None,
+                    "status": "rejected",
+                    "error": "subagent tools are only available while a task is executing",
+                }
+            return getattr(manager, action)(params if isinstance(params, dict) else {})
+
+        return _dispatch
+
+    def _has_write_tools(self) -> bool:
+        """父代理自身是否具备写能力（子代理写授权的必要条件）。"""
+        tools = getattr(self, "_tools", None) or {}
+        return any(name in tools for name in WRITE_TOOLS)
+
+    def _begin_subagent_scope(self, context: Any) -> None:
+        """为本次任务建立子代理作用域（父任务标识 + 隔离管理器）。"""
+        task_id = (
+            getattr(context, "task_id", None)
+            or getattr(context, "parent_task_id", None)
+            or f"{self.agent_id}-{uuid.uuid4().hex[:8]}"
+        )
+        self._task_scope_id = task_id
+        if self._subagent_depth >= self._subagent_max_depth:
+            return
+        # 延迟导入：airymax_agents 包在导入期会加载本模块，模块级导入
+        # resolve_role 会形成环。
+        from . import resolve_role
+
+        self._subagent_manager = SubagentManager(
+            parent_agent_id=self.agent_id,
+            parent_task_id=task_id,
+            parent_session_id=getattr(context, "session_id", None),
+            workspace_dir=self.workspace_dir,
+            readonly=not self._has_write_tools(),
+            depth=self._subagent_depth,
+            role_resolver=resolve_role,
+        )
+        logger.debug(
+            "AirymaxAgent[%s] subagent scope %s opened (readonly=%s)",
+            self.agent_id, task_id, not self._has_write_tools(),
+        )
+
+    def _end_subagent_scope(self) -> None:
+        """结束作用域：终止所有存活子进程（取消级联）。"""
+        manager = self._subagent_manager
+        self._subagent_manager = None
+        if manager is not None:
+            manager.shutdown()
+        self._task_scope_id = None
+
     #: 工具参数中含路径的字段（相对路径 → workspace 内绝对路径）。
     #: fs_glob 的 base 与 fs_grep 的 path 同为目录/文件定位字段。
     _PATH_TOOL_PARAMS = {
@@ -285,22 +388,28 @@ class AirymaxAgent(LLMAgent):
         返回:
             TaskResult（与 :meth:`LLMAgent.execute` 一致）
         """
-        # 1. 可选：将输入上下文写入 agentrt 记忆
-        if self._sys is not None:
-            if "tool_catalog" in self.degraded:
-                # 构造时 tool_d 尚未就绪：执行前再同步一次目录，
-                # 避免一次瞬时失败让整个生命周期都没有工具。
-                self._register_builtin_tools()
-            await self._persist_input(input_data, context)
+        # 1. 子代理作用域（父任务标识 + 隔离子进程管理器）：随本次任务
+        #    建立，任务终态（含异常/取消）时统一回收，实现取消级联。
+        self._begin_subagent_scope(context)
+        try:
+            # 2. 可选：将输入上下文写入 agentrt 记忆
+            if self._sys is not None:
+                if "tool_catalog" in self.degraded:
+                    # 构造时 tool_d 尚未就绪：执行前再同步一次目录，
+                    # 避免一次瞬时失败让整个生命周期都没有工具。
+                    self._register_builtin_tools()
+                await self._persist_input(input_data, context)
 
-        # 2. LLM 推理（沿用父类完整逻辑：LLM + 工具回路）
-        result = await super().execute(input_data, context)
+            # 3. LLM 推理（沿用父类完整逻辑：LLM + 工具回路）
+            result = await super().execute(input_data, context)
 
-        # 3. 可选：将最终结果持久化到 agentrt 记忆
-        if self._sys is not None and result is not None:
-            await self._persist_result(result, context)
+            # 4. 可选：将最终结果持久化到 agentrt 记忆
+            if self._sys is not None and result is not None:
+                await self._persist_result(result, context)
 
-        return result
+            return result
+        finally:
+            self._end_subagent_scope()
 
     async def _persist_input(self, input_data: Any, context: Any) -> None:
         """将输入上下文持久化到 agentrt mem_d（best-effort）。"""

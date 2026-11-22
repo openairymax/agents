@@ -8,16 +8,22 @@
 
   - 请求（从 stdin 读取）::
 
-      {"agent_id": "...", "input": "...", "session_id": "...", "history": [...]}
+      {"agent_id": "...", "input": "...", "session_id": "...",
+       "parent_task_id": "...", "history": [...]}
 
-    ``session_id`` 与 ``history`` 均可选：前者标识会话，后者为
-    OpenAI messages 形式的历史轮次（user/assistant），在本次输入前
-    重放以支持多轮追问。每次请求独立构造上下文，不跨请求复用。
+    ``session_id``、``parent_task_id`` 与 ``history`` 均可选：前者标识
+    会话，``parent_task_id`` 标明本请求是哪个父任务派生的子代理任务
+    （顶层任务缺省），后者为 OpenAI messages 形式的历史轮次
+    （user/assistant），在本次输入前重放以支持多轮追问。每次请求独立
+    构造上下文，不跨请求复用。
 
   - 响应（写入 stdout）::
 
-      {"success": true, "output": "..."}
+      {"success": true, "output": "...", "metrics": {...}}
       {"success": false, "error": "..."}
+
+    ``metrics``（model/rounds/tokens/elapsed_ms）仅随成功响应出现，
+    供父代理汇总子任务用量；agent_d 只消费 ``output``，不受影响。
 
 生命周期:
 
@@ -45,6 +51,7 @@ import json
 import logging
 import os
 import re
+import signal
 import sys
 from typing import Any, Optional, Tuple
 
@@ -103,9 +110,6 @@ def _content_declares_failure(text: str) -> bool:
 # agent_vocab SSoT），下列本地表仅为 agent_d 不可达时的启动回退。
 _READONLY_LOCAL = frozenset({"tester", "reviewer"})
 
-# 写操作工具：从只读角色的工具注册表与 schema 中移除。集合定义在
-# orchestration.core.tool（唯一来源），只读隔离与子代理默认只读共用。
-
 # 运行期角色词汇表（agent.vocab 返回值），None 表示未加载/加载失败。
 _ROLE_VOCAB: Optional[dict] = None
 
@@ -156,15 +160,18 @@ def _readonly_roles() -> frozenset:
     return _READONLY_LOCAL
 
 
-def _apply_role_tool_limits(agent: Any, role: str) -> None:
+def _apply_role_tool_limits(agent: Any, role: str, force_readonly: bool = False) -> None:
     """按角色收紧 agent 可用工具（判定基于归一化后的具体角色）。
 
     只读角色移除写工具（fs_write/fs_edit/fs_delete/shell_run）：LLM
     function-calling 的 schema 与其可调用注册表同时移除，实现能力隔离。
     其他角色保持完整工具集。
+
+    ``force_readonly`` 用于子代理（§25.6 隔离层）：父代理未显式授权写
+    时，即使子代理角色本身可写也按只读隔离，默认最小权限。
     """
     canon = _canonical_role(role)
-    if canon not in _readonly_roles():
+    if not force_readonly and canon not in _readonly_roles():
         return
     tools = getattr(agent, "_tools", None)
     schemas = getattr(agent, "_tool_schemas", None)
@@ -205,11 +212,19 @@ def _build_syscall_proxy() -> Tuple[Optional[Any], str]:
         return None, str(e)[:120]
 
 
-def _make_response(output: str = "", success: bool = True, error: str = "") -> str:
-    """构建单行 JSON 响应。"""
+def _make_response(output: str = "", success: bool = True, error: str = "",
+                   metrics: Optional[dict] = None) -> str:
+    """构建单行 JSON 响应。
+
+    ``metrics``（model/rounds/tokens/elapsed_ms）随成功响应回传：子代理
+    需要把 token 与耗时汇总给父任务；agent_d 的 inv_take 只取 output，
+    不会消费该字段（对既有调用方向后兼容）。
+    """
     resp: dict = {"success": success}
     if success:
         resp["output"] = output
+        if metrics:
+            resp["metrics"] = metrics
     else:
         resp["error"] = error
     return json.dumps(resp, ensure_ascii=False)
@@ -238,17 +253,20 @@ def _make_ready(role: str, degraded: Optional[list] = None,
 
 async def _execute_once(agent: Any, agent_id: str, user_input: str,
                         session_id: Optional[str] = None,
-                        history: Optional[list] = None) -> str:
+                        history: Optional[list] = None,
+                        parent_task_id: Optional[str] = None) -> str:
     """执行一次 Agent 调用，返回 JSON 响应字符串。
 
-    上下文按请求独立构造：会话标识与历史随请求携带（缺省即无会话、
-    无历史），不复用上一请求的上下文（S-P1-19 跨请求串话根因）。
+    上下文按请求独立构造：会话标识、父任务与历史随请求携带（缺省即
+    无会话、无历史、顶层任务），不复用上一请求的上下文（S-P1-19
+    跨请求串话根因）。
     """
     from orchestration.core.agent import AgentContext
 
     ctx = AgentContext(
         agent_id=agent_id,
         session_id=session_id,
+        parent_task_id=parent_task_id,
         history=list(history or []),
     )
     result = await agent.execute(user_input, ctx)
@@ -266,7 +284,37 @@ async def _execute_once(agent: Any, agent_id: str, user_input: str,
             success=False,
             error="agent reported it could not complete the task: " + str(output)[:200],
         )
-    return _make_response(output=str(output), success=True)
+    metrics = getattr(result, "metrics", None)
+    return _make_response(
+        output=str(output),
+        success=True,
+        metrics=metrics if isinstance(metrics, dict) else None,
+    )
+
+
+def _install_termination_handler(agent: Any) -> None:
+    """SIGTERM/SIGINT 时先终止子进程再退出（§25.6 取消级联）。
+
+    agent_d 用 SIGTERM 结束 invoke；若本进程正带着子代理执行，必须先
+    回收子进程再退出，否则取消只到达父级，子进程会成为孤儿继续跑。
+    信号处理只做同步终止，随后立即退出，不回到异步循环。
+    """
+
+    def _handler(signum, _frame):
+        manager = getattr(agent, "_subagent_manager", None)
+        if manager is not None:
+            try:
+                manager.shutdown()
+            except Exception:  # noqa: BLE001 - 退出路径上不再抛错
+                pass
+        os._exit(128 + signum)
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            signal.signal(sig, _handler)
+        except (ValueError, OSError):
+            # 非主线程或平台不支持：保留默认行为
+            pass
 
 
 def main() -> int:
@@ -310,8 +358,9 @@ def main() -> int:
 
         agent = get_agent(role, syscall_proxy=syscall_proxy)
         # 角色工具白名单（只读角色能力隔离）：须在 initialize 前应用，
-        # 确保 function-calling 始终看不到被移除的工具。
-        _apply_role_tool_limits(agent, role)
+        # 确保 function-calling 始终看不到被移除的工具。子代理规格
+        # 携带 ``readonly`` 时强制只读（父级未授权写，最小权限隔离）。
+        _apply_role_tool_limits(agent, role, bool(spec.get("readonly")))
         asyncio.run(agent.initialize())
     except Exception as e:
         logger.exception("agent init failed (role=%s)", role)
@@ -319,6 +368,7 @@ def main() -> int:
         return 1
 
     logger.info("runner ready (role=%s, agent_id=%s)", role, agent.agent_id)
+    _install_termination_handler(agent)
 
     # 项目上下文（AGENTS.md 等价物）加载状态：启动即注入 Agent 系统上下文
     from orchestration.core.project_context import find_project_context
@@ -345,6 +395,7 @@ def main() -> int:
             agent_id = req.get("agent_id", "unknown")
             user_input = req.get("input", "")
             session_id = req.get("session_id") or None
+            parent_task_id = req.get("parent_task_id") or None
             history = req.get("history")
             if not isinstance(history, list):
                 history = None
@@ -381,7 +432,11 @@ def main() -> int:
         logger.debug("runner workspace: %s", agent.workspace_dir or _RUNNER_BASE_CWD)
 
         try:
-            resp = asyncio.run(_execute_once(agent, agent_id, user_input, session_id, history))
+            resp = asyncio.run(
+                _execute_once(
+                    agent, agent_id, user_input, session_id, history, parent_task_id
+                )
+            )
         except Exception as e:
             logger.exception("execute failed (agent_id=%s)", agent_id)
             resp = _make_response(success=False, error=f"execute failed: {e}")
