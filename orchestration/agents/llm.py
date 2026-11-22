@@ -45,6 +45,7 @@ from ..core.agent import (
     Message,
     TaskResult,
 )
+from ..core.cap_schema import check_input, load_caps
 from ..core.llm import LLMClient, MockLLMClient, make_llm_client
 from ..core.llm_cfg import model_tool_rounds
 from ..core.project_context import inject_project_context
@@ -190,6 +191,13 @@ class LLMAgent(Agent):
             capabilities=capabilities,
         )
         self.contract = contract
+        # 能力声明在构造期逐条校验（S-P1-14）：类型/properties/required
+        # 不合法的契约立即拒绝，不得静默进入运行期。
+        self.contract_caps: Dict[str, Dict[str, Any]] = load_caps(
+            contract.get("capabilities")
+        )
+        self._runs = 0
+        self._ok = 0
         self.llm = llm if llm is not None else make_llm_client()
         self.system_prompt = system_prompt or self._default_system_prompt()
 
@@ -239,7 +247,52 @@ class LLMAgent(Agent):
 
     # ── 核心执行 ──────────────────────────────────────────
 
+    @property
+    def success_rate(self) -> float:
+        """实测成功率（S-P1-14）：契约不得声明，调度按真实结果计分。
+
+        无样本时返回中性先验 1.0，避免新 Agent 在加权调度中被零分淘汰。
+        """
+        return 1.0 if self._runs == 0 else self._ok / self._runs
+
+    def _cap_gate(self, input_data: Any, context: AgentContext) -> Optional[TaskResult]:
+        """按 ``metadata.capability`` 校验能力名与结构化输入。
+
+        未指定能力时按自由文本任务执行（缺省形态）；指定能力必须
+        命中契约声明，输入为对象时按 input_schema 校验，失败即拒绝。
+        """
+        meta = getattr(context, "metadata", None) or {}
+        name = str(meta.get("capability") or "").strip()
+        if not name:
+            return None
+        cap = self.contract_caps.get(name)
+        if cap is None:
+            return TaskResult(
+                success=False,
+                error=f"unknown capability: {name}",
+                error_code="CAPABILITY_UNKNOWN",
+            )
+        if isinstance(input_data, dict):
+            try:
+                check_input(cap, input_data)
+            except ValueError as exc:
+                return TaskResult(
+                    success=False,
+                    error=f"capability input invalid: {exc}",
+                    error_code="CAPABILITY_INPUT_INVALID",
+                )
+        return None
+
     async def execute(self, input_data: Any, context: AgentContext) -> TaskResult:
+        """执行任务，并记录实测成功统计（契约成功率不再写死）。"""
+        gate = self._cap_gate(input_data, context)
+        result = gate if gate is not None else await self._execute(input_data, context)
+        self._runs += 1
+        if result.success:
+            self._ok += 1
+        return result
+
+    async def _execute(self, input_data: Any, context: AgentContext) -> TaskResult:
         """执行任务：调 LLM + 工具回路，返回 TaskResult。"""
         self._status = AgentStatus.RUNNING
         self._update_activity()

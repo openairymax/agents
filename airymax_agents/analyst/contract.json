@@ -25,8 +25,7 @@
         }
       },
       "estimated_tokens": 6000,
-      "avg_duration_ms": 4000,
-      "success_rate": 0.91
+      "avg_duration_ms": 4000
     },
     {
       "name": "trend_detection",

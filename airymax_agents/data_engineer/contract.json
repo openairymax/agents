@@ -26,8 +26,7 @@
         }
       },
       "estimated_tokens": 6000,
-      "avg_duration_ms": 4500,
-      "success_rate": 0.9
+      "avg_duration_ms": 4500
     },
     {
       "name": "etl_development",

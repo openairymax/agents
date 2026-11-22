@@ -42,8 +42,7 @@
         }
       },
       "estimated_tokens": 5000,
-      "avg_duration_ms": 3000,
-      "success_rate": 0.92
+      "avg_duration_ms": 3000
     },
     {
       "name": "prd_generation",

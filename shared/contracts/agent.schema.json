@@ -90,8 +90,7 @@
         "input_schema": {"$ref": "#/$defs/jsonSchemaObject"},
         "output_schema": {"$ref": "#/$defs/jsonSchemaObject"},
         "estimated_tokens": {"type": "integer", "minimum": 0},
-        "avg_duration_ms": {"type": "integer", "minimum": 0},
-        "success_rate": {"type": "number", "minimum": 0, "maximum": 1}
+        "avg_duration_ms": {"type": "integer", "minimum": 0}
       }
     },
     "model": {

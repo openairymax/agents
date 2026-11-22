@@ -35,8 +35,7 @@
         }
       },
       "estimated_tokens": 2000,
-      "avg_duration_ms": 1500,
-      "success_rate": 0.9
+      "avg_duration_ms": 1500
     }
   ],
   "models": {

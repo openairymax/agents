@@ -42,8 +42,7 @@
         }
       },
       "estimated_tokens": 6000,
-      "avg_duration_ms": 3500,
-      "success_rate": 0.91
+      "avg_duration_ms": 3500
     },
     {
       "name": "service_implementation",

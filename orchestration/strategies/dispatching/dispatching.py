@@ -64,6 +64,16 @@ class TaskContext:
     deadline: Optional[float] = None
 
 
+def _rate(value: Any, default: float = 1.0) -> float:
+    """成功率归一：缺省/非法回落中性先验，实测 0.0 不得被抹平。"""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _coerce_agent(item: Any) -> Optional[AgentMetrics]:
     """把任意形态的 Agent 条目规范化为 :class:`AgentMetrics`。
 
@@ -90,7 +100,7 @@ def _coerce_agent(item: Any) -> Optional[AgentMetrics]:
             weight=float(item.get("weight", 1.0)),
             current_load=float(item.get("current_load", item.get("load", 0.0))),
             avg_response_time=float(item.get("avg_response_time", 0.0)),
-            success_rate=float(item.get("success_rate", 1.0)),
+            success_rate=_rate(item.get("success_rate")),
             priority=int(item.get("priority", 0)),
             capabilities=list(item.get("capabilities", []) or []),
         )
@@ -103,7 +113,7 @@ def _coerce_agent(item: Any) -> Optional[AgentMetrics]:
         weight=float(getattr(item, "weight", 1.0) or 1.0),
         current_load=float(getattr(item, "current_load", getattr(item, "load", 0.0)) or 0.0),
         avg_response_time=float(getattr(item, "avg_response_time", 0.0) or 0.0),
-        success_rate=float(getattr(item, "success_rate", 1.0) or 1.0),
+        success_rate=_rate(getattr(item, "success_rate", None)),
         priority=int(getattr(item, "priority", 0) or 0),
         capabilities=list(getattr(item, "capabilities", []) or []),
     )
