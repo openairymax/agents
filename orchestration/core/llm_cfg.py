@@ -70,7 +70,7 @@ def _model_yaml_candidates() -> List[str]:
 
 
 def _load_models_table() -> List[Dict[str, str]]:
-    """读取 model.yaml v2 模型连接表（最多 3 行，表格格式）。
+    """读取 model.yaml 模型连接表（行数不限，逐行解析）。
 
     轻量文本解析（无 YAML 依赖）：匹配顶层 ``models:`` 下每个 ``- name:``
     条目，提取 name / model_id / api_key_env / base_url。解析失败或文件
@@ -106,7 +106,8 @@ def _load_models_table() -> List[Dict[str, str]]:
                 continue
             key, _, val = line.partition(":")
             key = key.strip()
-            if key in ("model_id", "api_key_env", "base_url", "mode", "api_format"):
+            if key in ("model_id", "api_key_env", "base_url", "mode",
+                       "api_format", "context_window", "tool_rounds"):
                 cur[key] = _yaml_scalar(val)
         if cur:
             entries.append(cur)
@@ -189,6 +190,17 @@ def _local_pick(model: str, provider: Optional[str]) -> Optional[Dict[str, str]]
     return None
 
 
+def model_tool_rounds(model: str) -> int:
+    """model.yaml 中该模型条目声明的工具轮次（0 = 未声明/非法）。
+
+    执行体侧的策略消费点：与 ``TOOL_ROUNDS_MAX`` 机制硬界配合，
+    使配置项与运行期预算一一映射。
+    """
+    entry = _entry_by_model_id(model) if model else None
+    try:
+        return int((entry or {}).get("tool_rounds") or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _yaml_top_scalar(key: str) -> str:

@@ -44,6 +44,7 @@ from ..core.agent import (
     TaskResult,
 )
 from ..core.llm import LLMClient, MockLLMClient, make_llm_client
+from ..core.llm_cfg import model_tool_rounds
 from ..core.project_context import inject_project_context
 from ..core.tool import tool_timeout
 
@@ -69,18 +70,21 @@ MAX_TOOL_RESULT_CHARS = 64 * 1024
 DEFAULT_TOOL_FAIL_LIMIT = 3
 
 
-def _rounds_limit() -> int:
+def _rounds_limit(model: str = "") -> int:
     """解析一次执行的工具轮次预算。
 
-    策略面环境变量 ``AIRY_AGENT_TOOL_ROUNDS`` 与 agent_d 的
-    ``rounds_resolve`` 同名同界：非法值或缺省回落
-    :data:`TOOL_ROUNDS_DEFAULT`，结果夹取到 :data:`TOOL_ROUNDS_MAX`。
-    单次 execute 解析一次，运行期改环境变量不影响进行中的任务。
+    优先级：``AIRY_AGENT_TOOL_ROUNDS``（运维显式收紧/放宽）>
+    model.yaml 当前条目的 ``tool_rounds``（配置 SSoT）>
+    :data:`TOOL_ROUNDS_DEFAULT`；结果夹取到 :data:`TOOL_ROUNDS_MAX`，
+    与 agent_d 的 ``rounds_resolve`` 同名同界。
+    单次 execute 解析一次，运行期改配置不影响进行中的任务。
     """
     try:
         n = int(os.environ.get("AIRY_AGENT_TOOL_ROUNDS", ""))
     except ValueError:
         n = 0
+    if n <= 0:
+        n = model_tool_rounds(model)
     if n <= 0:
         n = TOOL_ROUNDS_DEFAULT
     return min(n, TOOL_ROUNDS_MAX)
@@ -224,7 +228,8 @@ class LLMAgent(Agent):
 
         started = time.time()
         rounds = 0
-        max_rounds = _rounds_limit()
+        model = self._select_model(input_data)
+        max_rounds = _rounds_limit(model)
         fail_limit = _tool_fail_limit()
         consecutive_failures = 0
         # 最近 K 个失败原因（K = fail_limit），熔断时一并回报，
@@ -237,7 +242,6 @@ class LLMAgent(Agent):
         # 中途收敛提示按单次 execute 计数（runner 主循环复用 agent 处理
         # 多个请求，标志须在每次执行时重置，避免跨任务误跳提示）。
         self._mid_progress_hinted = False
-        model = self._select_model(input_data)
         tool_defs = self._build_tool_definitions()
 
         # 项目上下文（AGENTS.md 等价物）作为 system 消息注入最前；
