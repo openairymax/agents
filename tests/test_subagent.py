@@ -58,9 +58,15 @@ _SLOW_CHILD = [
 
 @pytest.fixture(autouse=True)
 def _offline(monkeypatch, tmp_path):
-    """隔离宿主密钥与配置，保证子进程走 MockLLM 且不触网。"""
+    """隔离宿主密钥与配置，保证子进程走 MockLLM 且不触网。
+
+    不设厂商时工厂会回落到 model.yaml 的本地条目（127.0.0.1:11435），
+    干净的 CI 上没有该进程，子代理会连不上。钉住一个云端厂商并清掉
+    它的 key，才是文档化的离线路径：无 key → MockLLMClient。
+    """
     monkeypatch.setenv("AIRY_HOME", str(tmp_path / "home"))
-    monkeypatch.delenv("AIRY_LLM_PROVIDER", raising=False)
+    monkeypatch.setenv("AIRY_LLM_PROVIDER", "deepseek")
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     monkeypatch.delenv("AIRY_SUBAGENT_DEPTH", raising=False)
 
 
