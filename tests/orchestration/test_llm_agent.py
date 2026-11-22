@@ -23,7 +23,12 @@ import time
 
 import pytest
 
-from orchestration.agents.llm import LLMAgent
+from orchestration.agents.llm import (
+    TOOL_ROUNDS_DEFAULT,
+    TOOL_ROUNDS_MAX,
+    LLMAgent,
+    _rounds_limit,
+)
 from orchestration.core.agent import AgentContext
 
 
@@ -318,4 +323,40 @@ class TestToolTimeout:
         payload = json.loads(await agent._invoke_tool("fs_write", "{}"))
         assert payload["error_code"] == "TOOL_TIMEOUT"
         assert "timed out" in payload["error"]
+
+
+class TestToolRoundsBudget:
+    """S-P0-08：轮次预算由策略面决定（AIRY_AGENT_TOOL_ROUNDS），机制给硬界。"""
+
+    def test_default_when_env_absent(self, monkeypatch):
+        monkeypatch.delenv("AIRY_AGENT_TOOL_ROUNDS", raising=False)
+        assert _rounds_limit() == TOOL_ROUNDS_DEFAULT
+
+    def test_env_value_honored(self, monkeypatch):
+        monkeypatch.setenv("AIRY_AGENT_TOOL_ROUNDS", "5")
+        assert _rounds_limit() == 5
+
+    def test_env_clamped_to_mechanism_ceiling(self, monkeypatch):
+        """策略不得突破机制硬界：env 再大也只到 TOOL_ROUNDS_MAX。"""
+        monkeypatch.setenv("AIRY_AGENT_TOOL_ROUNDS", "1000")
+        assert _rounds_limit() == TOOL_ROUNDS_MAX
+
+    def test_invalid_env_falls_back(self, monkeypatch):
+        monkeypatch.setenv("AIRY_AGENT_TOOL_ROUNDS", "not-a-number")
+        assert _rounds_limit() == TOOL_ROUNDS_DEFAULT
+
+    @pytest.mark.asyncio
+    async def test_overflow_reports_effective_budget(self, monkeypatch):
+        """预算耗尽时错误信息回报实际生效值，而非编译期常量。"""
+        monkeypatch.setenv("AIRY_AGENT_TOOL_ROUNDS", "2")
+        replies = [
+            _resp(tool_calls=[_tool_call("fs_write", '{"path": "a", "n": 1}')]),
+            _resp(tool_calls=[_tool_call("fs_write", '{"path": "a", "n": 2}')]),
+            _resp(tool_calls=[_tool_call("fs_write", '{"path": "a", "n": 3}')]),
+        ]
+        agent = _agent(ScriptedLLM(replies), lambda params: "ok")
+        result = await agent.execute("write", AgentContext("t"))
+        assert result.success is False
+        assert result.error_code == "TOOL_LOOP_OVERFLOW"
+        assert "2 rounds" in (result.error or "")
 

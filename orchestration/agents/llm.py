@@ -51,12 +51,14 @@ logger = logging.getLogger(__name__)
 
 # 简单任务判定阈值（≤ 此字符数的输入走 system1 快思考）
 SIMPLE_TASK_MAX_CHARS = 600
-# 工具回路最大轮数，防止 LLM 反复调用工具
-# （16 轮：多步任务如"写→读→改→复核→删→glob 确认"每轮单工具也留足余量；
-#  loop-hint 在连续重复 3 次注入警告、4 次强制终止，仍能防死循环，
-#  硬上限只是兜底，见 execute() 内 loop 保护。q8i 实测 8 轮不足以完成
-#  六步文件增删改查闭环，LLM 每轮通常只调一个工具）
-MAX_TOOL_ROUNDS = 16
+# 工具回路轮次预算，防止 LLM 反复调用工具。
+# 机制与策略分离：机制给硬上限（TOOL_ROUNDS_MAX，与 agent_d 的
+# rounds_resolve 同界 32）；策略经 AIRY_AGENT_TOOL_ROUNDS 收紧到具体值；
+# 缺省 16（多步任务如"写→读→改→复核→删→glob 确认"每轮单工具也留足余量；
+# loop-hint 在连续重复 3 次注入警告、4 次强制终止，仍能防死循环，硬上限
+# 只是兜底。q8i 实测 8 轮不足以完成六步文件增删改查闭环）。
+TOOL_ROUNDS_DEFAULT = 16
+TOOL_ROUNDS_MAX = 32
 # 单次工具结果回灌 LLM 上下文的上限（参照 Atom Code 64KiB 上限；防止大文件读取污染窗口）
 MAX_TOOL_RESULT_CHARS = 64 * 1024
 # 连败熔断默认阈值：连续 N 次工具调用失败即终止。
@@ -65,6 +67,23 @@ MAX_TOOL_RESULT_CHARS = 64 * 1024
 # 必然是系统性故障（工具缺失/策略错误），继续重试没有意义。
 # 环境变量 AIRY_TOOL_FAIL_LIMIT 可覆盖（非法值回退默认）。
 DEFAULT_TOOL_FAIL_LIMIT = 3
+
+
+def _rounds_limit() -> int:
+    """解析一次执行的工具轮次预算。
+
+    策略面环境变量 ``AIRY_AGENT_TOOL_ROUNDS`` 与 agent_d 的
+    ``rounds_resolve`` 同名同界：非法值或缺省回落
+    :data:`TOOL_ROUNDS_DEFAULT`，结果夹取到 :data:`TOOL_ROUNDS_MAX`。
+    单次 execute 解析一次，运行期改环境变量不影响进行中的任务。
+    """
+    try:
+        n = int(os.environ.get("AIRY_AGENT_TOOL_ROUNDS", ""))
+    except ValueError:
+        n = 0
+    if n <= 0:
+        n = TOOL_ROUNDS_DEFAULT
+    return min(n, TOOL_ROUNDS_MAX)
 
 
 def _tool_fail_limit() -> int:
@@ -205,6 +224,7 @@ class LLMAgent(Agent):
 
         started = time.time()
         rounds = 0
+        max_rounds = _rounds_limit()
         fail_limit = _tool_fail_limit()
         consecutive_failures = 0
         # 最近 K 个失败原因（K = fail_limit），熔断时一并回报，
@@ -230,7 +250,7 @@ class LLMAgent(Agent):
         )
 
         try:
-            while rounds <= MAX_TOOL_ROUNDS:
+            while rounds <= max_rounds:
                 resp = await self.llm.chat(
                     messages=messages,
                     model=model,
@@ -281,9 +301,9 @@ class LLMAgent(Agent):
                 loop_hint = None
                 # 中途收敛提示（q8i 生产实测）：模型可能在"不同参数/不同工具"间
                 # 空转（指纹不同，不触发上面的连续重复检测）直至硬上限。到
-                # MAX_TOOL_ROUNDS 的 60% 仍未收尾时注入一次性收敛提醒，引导
+                # max_rounds 的 60% 仍未收尾时注入一次性收敛提醒，引导
                 # 模型停止无进展重试、基于已有工具结果给出结论。
-                if rounds >= int(MAX_TOOL_ROUNDS * 0.6) and not getattr(
+                if rounds >= int(max_rounds * 0.6) and not getattr(
                     self, "_mid_progress_hinted", False
                 ):
                     loop_hint = (
@@ -370,7 +390,7 @@ class LLMAgent(Agent):
             return TaskResult(
                 success=False,
                 output=None,
-                error=f"tool loop exceeded {MAX_TOOL_ROUNDS} rounds",
+                error=f"tool loop exceeded {max_rounds} rounds",
                 error_code="TOOL_LOOP_OVERFLOW",
             )
         except Exception as e:
@@ -547,7 +567,8 @@ class LLMAgent(Agent):
 
 __all__ = [
     "LLMAgent",
-    "MAX_TOOL_ROUNDS",
+    "TOOL_ROUNDS_DEFAULT",
+    "TOOL_ROUNDS_MAX",
     "SIMPLE_TASK_MAX_CHARS",
     "DEFAULT_TOOL_FAIL_LIMIT",
 ]
