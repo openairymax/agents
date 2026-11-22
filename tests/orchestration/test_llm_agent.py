@@ -5,7 +5,8 @@
   - finish_reason=length/max_tokens 且 arguments JSON 损坏
     → 立即 fast-fail TOOL_ARGS_TRUNCATED（确定性失败不烧工具轮次）
   - 截断但 arguments 合法 → 照常执行工具，不误杀
-  - 纯 content 截断 → 显式截断标记 + metrics.truncated
+  - 纯 content 截断 → 不完整终态 LLM_OUTPUT_TRUNCATED（保留前缀可续写）
+  - 安全拦截（content_filter / SAFETY / refusal）→ LLM_CONTENT_FILTERED
   - 非截断畸形 arguments → 显式 "invalid tool arguments JSON" 回传
     （替代历史 {"_raw": ...} 静默降级），工具不被调用
 
@@ -146,14 +147,18 @@ class TestLLMAgentTruncation:
         assert any("written" in m["content"] for m in tool_msgs)
 
     @pytest.mark.asyncio
-    async def test_content_truncation_marked(self):
-        """纯 content 截断 → 显式标记 + metrics.truncated，不 fast-fail。"""
+    async def test_content_truncation_incomplete(self):
+        """纯 content 截断 → 不完整终态，前缀保留供续写或重试。"""
         llm = ScriptedLLM([_resp(content="partial analysis...", finish="length")])
         result = await _agent(llm, lambda p: "x").execute("analyze", AgentContext("t"))
-        assert result.success is True
+        assert result.success is False
+        assert result.error_code == "LLM_OUTPUT_TRUNCATED"
+        assert result.output.startswith("partial analysis...")
         assert "[output truncated" in result.output
         assert "finish_reason=length" in result.output
+        assert "AIRY_LLM_MAX_TOKENS" in (result.error or "")
         assert result.metrics["truncated"] is True
+        assert result.metrics["finish_reason"] == "length"
         assert llm.calls == 1
 
     @pytest.mark.asyncio

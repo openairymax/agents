@@ -62,6 +62,22 @@ logger = logging.getLogger(__name__)
 # 只是兜底。q8i 实测 8 轮不足以完成六步文件增删改查闭环）。
 TOOL_ROUNDS_DEFAULT = 16
 TOOL_ROUNDS_MAX = 32
+# 终结原因规范词汇（与 commons/utils/types/llm_service_types.h 同源）：
+# 厂商原生标记在进入判定前一律归一，判定不再直接比较厂商字符串。
+FINISH_STOP = "stop"
+FINISH_LENGTH = "length"
+FINISH_FILTER = "content_filter"
+FINISH_TOOLS = "tool_calls"
+_FINISH_ALIASES = {
+    "STOP": FINISH_STOP,
+    "end_turn": FINISH_STOP,
+    "stop_sequence": FINISH_STOP,
+    "max_tokens": FINISH_LENGTH,
+    "MAX_TOKENS": FINISH_LENGTH,
+    "SAFETY": FINISH_FILTER,
+    "refusal": FINISH_FILTER,
+    "tool_use": FINISH_TOOLS,
+}
 # 单次工具结果回灌 LLM 上下文的上限（参照 Atom Code 64KiB 上限；防止大文件读取污染窗口）
 MAX_TOOL_RESULT_CHARS = 64 * 1024
 # 连败熔断默认阈值：连续 N 次工具调用失败即终止。
@@ -137,6 +153,56 @@ def _truncate_tool_result(result: str) -> str:
         result[:MAX_TOOL_RESULT_CHARS]
         + f"\n...[tool result truncated at {MAX_TOOL_RESULT_CHARS} chars]"
     )
+
+
+def _finish_norm(raw: Any) -> str:
+    """把厂商终结标记归一到规范词汇。
+
+    缺失标记按 ``stop`` 处理（与 C 侧 llm_finish_reason_norm 同判）；
+    未识别的标记原样返回，不丢弃上游信号，由调用方记录进 metrics。
+    """
+    value = str(raw or "").strip()
+    if not value:
+        return FINISH_STOP
+    return _FINISH_ALIASES.get(value, value)
+
+
+def _finish_result(content: str, finish: str, metrics: Dict[str, Any]) -> TaskResult:
+    """把无工具调用的终结轮映射为 TaskResult（S-P1-09）。
+
+    ``length`` 只拿到答案前缀：显式标记为不完整并保留前缀，供上层续写
+    或调高 ``$AIRY_LLM_MAX_TOKENS`` 后重试，不得当作最终答案；``content_filter``
+    是服务端安全拦截，正文不构成可用答案，按失败返回。其余标记（含未
+    识别的厂商标记）按完成放行，实际标记记录在 metrics 供判读。
+    """
+    if finish == FINISH_LENGTH:
+        return TaskResult(
+            success=False,
+            output=(
+                content
+                + "\n...[output truncated at provider token limit "
+                f"(finish_reason={finish})]"
+            ),
+            error=(
+                "model output truncated at the provider token limit; the "
+                "answer is incomplete. Continue from the partial output or "
+                "raise $AIRY_LLM_MAX_TOKENS and retry."
+            ),
+            error_code="LLM_OUTPUT_TRUNCATED",
+            metrics=metrics,
+        )
+    if finish == FINISH_FILTER:
+        return TaskResult(
+            success=False,
+            output=content or None,
+            error=(
+                "model output blocked by the provider safety filter "
+                f"(finish_reason={finish}); no usable answer was produced."
+            ),
+            error_code="LLM_CONTENT_FILTERED",
+            metrics=metrics,
+        )
+    return TaskResult(success=True, output=content, metrics=metrics)
 
 
 def _history_messages(context: AgentContext) -> List[Dict[str, Any]]:
@@ -345,26 +411,33 @@ class LLMAgent(Agent):
                 # 测不触发），直至烧完 16 轮预算——蓝图节点空转超时的
                 # 直接根源。截断属确定性失败（同请求必然再次截断），
                 # 一经实锤立即 fast-fail，不消耗工具轮次。
-                finish = str(choice.get("finish_reason") or "")
-                output_truncated = finish in ("length", "max_tokens")
+                finish = _finish_norm(choice.get("finish_reason"))
+                output_truncated = finish == FINISH_LENGTH
+                metrics = {
+                    "model": resp.get("model", model),
+                    "rounds": rounds,
+                    "tokens": resp.get("usage", {}).get("total_tokens"),
+                    "elapsed_ms": int((time.time() - started) * 1000),
+                    "truncated": output_truncated,
+                    "finish_reason": finish,
+                }
 
                 if not tool_calls:
                     content = msg.get("content", "") or ""
-                    if output_truncated:
-                        content += (
-                            "\n...[output truncated at provider token limit "
-                            f"(finish_reason={finish})]"
-                        )
+                    return _finish_result(content, finish, metrics)
+
+                # 安全拦截轮不回灌工具：正文已被服务端替换，按其内容执行
+                # 工具只会把污染传给下游，直接按拦截失败返回。
+                if finish == FINISH_FILTER:
                     return TaskResult(
-                        success=True,
-                        output=content,
-                        metrics={
-                            "model": resp.get("model", model),
-                            "rounds": rounds,
-                            "tokens": resp.get("usage", {}).get("total_tokens"),
-                            "elapsed_ms": int((time.time() - started) * 1000),
-                            "truncated": output_truncated,
-                        },
+                        success=False,
+                        output=None,
+                        error=(
+                            "model turn blocked by the provider safety filter "
+                            f"(finish_reason={finish}); tool calls discarded."
+                        ),
+                        error_code="LLM_CONTENT_FILTERED",
+                        metrics=metrics,
                     )
 
                 # 有 tool_calls：执行工具，结果回流到 messages
