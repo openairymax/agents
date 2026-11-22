@@ -40,120 +40,6 @@ from orchestration.core.llm import make_llm_client
 logger = logging.getLogger(__name__)
 
 
-#: tool_d 内置工具 schema（与 gateway GW_TOOLS_JSON 一一对应）。
-#:
-#: 注意：``required`` 必须与 tool_d 注册的参数集合一致——tool_d validator 对
-#: 所有注册参数一律校验「必须存在」，若 schema 声明可选而 tool_d 要求必填
-#: （如 fs_list 的 path），LLM 按 schema 不传参会导致工具校验失败。
-BUILTIN_TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
-    "fs_read": {
-        "description": "Read a file's content",
-        "parameters": {
-            "type": "object",
-            "properties": {"path": {"type": "string"}},
-            "required": ["path"],
-        },
-    },
-    "fs_write": {
-        "description": "Write content to a file (create/overwrite)",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string"},
-                "content": {"type": "string"},
-            },
-            "required": ["path", "content"],
-        },
-    },
-    "fs_list": {
-        "description": "List a directory's entries",
-        "parameters": {
-            "type": "object",
-            "properties": {"path": {"type": "string"}},
-            "required": ["path"],
-        },
-    },
-    "shell_run": {
-        "description": "Run a shell command, capture output",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "command": {"type": "string"},
-                "cwd": {"type": "string", "description": "Working directory (default: task dir)"},
-            },
-            "required": ["command"],
-        },
-    },
-    "web_fetch": {
-        "description": "Fetch a URL, return page body text",
-        "parameters": {
-            "type": "object",
-            "properties": {"url": {"type": "string"}},
-            "required": ["url"],
-        },
-    },
-    "fs_glob": {
-        "description": "List files by glob pattern",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "pattern": {"type": "string", "description": "Glob pattern (* ? **), relative to base"},
-                "base": {"type": "string"},
-            },
-            "required": ["pattern"],
-        },
-    },
-    "fs_grep": {
-        "description": "Regex search file contents",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "pattern": {"type": "string", "description": "POSIX ERE; skips .git/node_modules/build"},
-                "path": {"type": "string"},
-                "glob": {"type": "string"},
-                "max_results": {"type": "integer"},
-            },
-            "required": ["pattern"],
-        },
-    },
-    "fs_edit": {
-        "description": "Replace exact text in a file (search-and-replace)",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string"},
-                "old": {"type": "string", "description": "Exact text to match"},
-                "new": {"type": "string", "description": "Replacement text"},
-                "count": {"type": "integer"},
-            },
-            "required": ["path", "old", "new"],
-        },
-    },
-    "fs_delete": {
-        "description": "Delete a file or directory (use recursive=true for directories)",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string"},
-                "recursive": {"type": "boolean", "description": "Delete directories recursively"},
-            },
-            "required": ["path"],
-        },
-    },
-    "web_search": {
-        "description": "Search the web, return ranked results",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-                "max_results": {"type": "integer"},
-            },
-            "required": ["query"],
-        },
-    },
-}
-
-
 #: SyscallProxy 缺失时注入系统提示词的降级说明（显式告知模型无工具可用）。
 #:
 #: 只写「事实 + 要求」，不写实现细节：模型据此直接向用户说明能力缺失，
@@ -180,17 +66,16 @@ class AirymaxAgent(LLMAgent):
     agentrt 系统调用代理（``syscall_proxy``）是可选的：
 
       - ``None``（默认）：纯 Python LLM 模式，MockLLMClient 可跑、无 agentrt
-        依赖。此时 10 个内置工具**不暴露给模型**（能力清单与实际可执行集合
-        一致），系统提示词追加显式降级说明，``self.degraded`` 记录
-        ``"syscall_proxy"``，由 runner 的 ready 帧上报给 agent_d。
+        依赖。此时不注册任何工具（能力清单与实际可执行集合一致），系统提示
+        词追加显式降级说明，``self.degraded`` 记录 ``"syscall_proxy"``，
+        由 runner 的 ready 帧上报给 agent_d。
       - ``SyscallProxy(...)``：execute() 在 LLM 推理前后将输入上下文与
         最终结果写入 mem_d 守护进程持久化，便于跨会话/跨 Agent 检索。
         持久化失败不阻断 LLM 推理（仅记录 warning），保证业务可用性。
-        同时把 10 个 tool_d 内置工具（fs_read/fs_write/fs_list/shell_run/
-        web_fetch/fs_glob/fs_grep/fs_edit/fs_delete/web_search）注册为
-        function-calling 工具，让 LLM 真正具备读写文件、搜索代码、
-        执行命令、抓取/搜索网页的能力（dispatch 直连 tool_d，见
-        :meth:`_register_builtin_tools`）。
+        同时以 tool_d 的 ``list_tools`` 目录为唯一来源注册 function-calling
+        工具（含内置 fs_*/shell_run/web_*/git_*/maths_*/tool_create/priv_exec
+        与目录中已登记的动态工具），让模型看到的 schema 与 tool_d 注册表
+        同源；dispatch 直连 tool_d，见 :meth:`_register_builtin_tools`。
     """
 
     #: 子类必填：角色名 (与 contract.json 中 ``role`` 字段一致)
@@ -242,80 +127,85 @@ class AirymaxAgent(LLMAgent):
     # ── 内置工具（tool_d 接线） ───────────────────────────
 
     def _register_builtin_tools(self) -> None:
-        """把 10 个 tool_d 内置工具注册为 LLM function-calling 工具。
+        """以 tool_d 目录为唯一来源注册 LLM function-calling 工具。
 
-        仅当注入 ``syscall_proxy`` 时注册（纯 Python 向后兼容模式跳过）；
-        dispatch 经 ``syscall_proxy.tool_execute`` 直连 tool_d。单个工具
-        注册失败仅记录 warning 并跳过该工具，不阻断 Agent 初始化
-        （降级为纯 LLM 模式）。
+        S-P1-15：策略侧不再维护平行的静态 schema 表。每轮构造时拉取
+        ``list_tools``（C-16 目录 SSoT），按条目自带的 ``input_schema``
+        生成 function-calling 定义，因此「注册表」与「模型可调用 schema」
+        天然一致；目录里出现而这里漏注册、或参数漂移，都只可能来自
+        tool_d 本身，由 C 侧 ``catalog_n == contract_n`` 门禁拦截。
 
-        2026-08-26 修复（防静默丢失）与 0.1.21 S-P0-11 的收敛：
-
-        - 工具不再凭空消失：SyscallProxy 不可用时仍注册显式报错分发器，
-          直接调用（诊断脚本、单测）能拿到确定原因，而不是 KeyError。
-        - 但**不把 schema 交给 LLM**：模型看到的工具清单必须等于实际可执行
-          集合，否则模型会按有工具的假设反复调用必然失败的工具，把工具轮次
-          耗在重试上（社区 issue 的「答非所问/轮次耗尽」之一）。降级事实改由
-          系统提示词、``self.degraded`` 与 runner 的 ready 帧三处显式上报。
+        仅 ``available=true`` 的条目进入模型清单（不可用工具不得下发）；
+        单个条目注册失败记录 warning 并跳过，不阻断初始化。目录不可达时
+        不注册任何工具并追加 ``tool_catalog`` 降级信号——宁可显式无工具，
+        也不把未经 mechanism 确认的能力交给模型。
         """
         if self._sys is None:
-            for tool_id in BUILTIN_TOOL_SCHEMAS:
-                try:
-                    self.register_tool(
-                        tool_id, self._make_unavailable_dispatcher(tool_id)
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "AirymaxAgent[%s] register degraded tool '%s' failed: %s",
-                        self.agent_id, tool_id, e,
-                    )
             logger.error(
-                "AirymaxAgent[%s] SyscallProxy unavailable: %d builtin tools "
-                "withheld from the model (capability list matches the "
-                "executable set); degraded=%s",
-                self.agent_id, len(BUILTIN_TOOL_SCHEMAS), self.degraded,
+                "AirymaxAgent[%s] SyscallProxy unavailable: no tool is exposed "
+                "(capability list matches the executable set); degraded=%s",
+                self.agent_id, self.degraded,
             )
             return
-        for tool_id, schema in BUILTIN_TOOL_SCHEMAS.items():
+        try:
+            catalog = self._sys.tool_list()
+        except Exception as e:
+            if "tool_catalog" not in self.degraded:
+                self.degraded.append("tool_catalog")
+            logger.error(
+                "AirymaxAgent[%s] tool catalog unavailable, no tool exposed: %s",
+                self.agent_id, e,
+            )
+            return
+        for flag in ("tool_catalog", "tool_catalog_empty"):
+            if flag in self.degraded:
+                self.degraded.remove(flag)
+        registered = 0
+        for entry in catalog:
+            tool_id = entry.get("id")
+            if not isinstance(tool_id, str) or not tool_id:
+                continue
+            if not entry.get("available", False):
+                logger.info(
+                    "AirymaxAgent[%s] tool '%s' withheld: %s",
+                    self.agent_id, tool_id, entry.get("denied_reason", "unavailable"),
+                )
+                continue
+            schema = entry.get("input_schema")
+            if not isinstance(schema, dict):
+                logger.warning(
+                    "AirymaxAgent[%s] tool '%s' has no input_schema, skipped",
+                    self.agent_id, tool_id,
+                )
+                continue
             try:
                 self.register_tool(
                     tool_id,
                     self._make_tool_dispatcher(tool_id),
-                    schema=schema,
+                    schema={
+                        "description": entry.get("description", ""),
+                        "parameters": schema,
+                    },
                 )
-                logger.debug(
-                    "AirymaxAgent[%s] builtin tool registered: %s",
-                    self.agent_id, tool_id,
-                )
+                registered += 1
             except Exception as e:
                 logger.warning(
-                    "AirymaxAgent[%s] register builtin tool '%s' failed "
-                    "(non-fatal, degraded to pure LLM): %s",
+                    "AirymaxAgent[%s] register tool '%s' failed "
+                    "(non-fatal, skipped): %s",
                     self.agent_id, tool_id, e,
                 )
-
-    def _make_unavailable_dispatcher(
-        self, tool_id: str
-    ) -> Callable[[Dict[str, Any]], Dict[str, Any]]:
-        """SyscallProxy 缺失时工具的显式报错分发器（非桩实现）。
-
-        返回与 tool_d 一致的失败结构 ``{success:false, error, exit_code}``，
-        让 LLM 能把"工具不可用"转述给用户而不是无提示地消失。
-        """
-        def _dispatch(params: Dict[str, Any]) -> Dict[str, Any]:
-            del params
-            return {
-                "success": False,
-                "error": (
-                    f"无法执行工具 {tool_id}：agentrt SyscallProxy 未初始化"
-                    "（Python SDK 缺失、损坏或 socket 不可达）。"
-                    "请检查 agentrt SDK 安装：pip install -e sdk-python，"
-                    "并确认 mem_d/agent_d/tool_d daemon 正常运行。"
-                ),
-                "exit_code": 1,
-            }
-
-        return _dispatch
+        if registered == 0:
+            if "tool_catalog_empty" not in self.degraded:
+                self.degraded.append("tool_catalog_empty")
+            logger.error(
+                "AirymaxAgent[%s] tool catalog exposed no available tool",
+                self.agent_id,
+            )
+        else:
+            logger.debug(
+                "AirymaxAgent[%s] %d tools exposed from tool_d catalog",
+                self.agent_id, registered,
+            )
 
     #: 工具参数中含路径的字段（相对路径 → workspace 内绝对路径）。
     #: fs_glob 的 base 与 fs_grep 的 path 同为目录/文件定位字段。
@@ -397,6 +287,10 @@ class AirymaxAgent(LLMAgent):
         """
         # 1. 可选：将输入上下文写入 agentrt 记忆
         if self._sys is not None:
+            if "tool_catalog" in self.degraded:
+                # 构造时 tool_d 尚未就绪：执行前再同步一次目录，
+                # 避免一次瞬时失败让整个生命周期都没有工具。
+                self._register_builtin_tools()
             await self._persist_input(input_data, context)
 
         # 2. LLM 推理（沿用父类完整逻辑：LLM + 工具回路）
@@ -504,4 +398,4 @@ class AirymaxAgent(LLMAgent):
         return prompt_path.read_text(encoding="utf-8").strip()
 
 
-__all__ = ["AirymaxAgent", "BUILTIN_TOOL_SCHEMAS"]
+__all__ = ["AirymaxAgent"]

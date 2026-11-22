@@ -276,7 +276,7 @@ BUILTIN_TOOL_IDS = (
 def test_builtin_tools_registered_when_syscall_proxy_provided(
     mock_llm, mock_syscall_proxy
 ):
-    """注入 syscall_proxy 时，10 个 tool_d 内置工具应注册为 function-calling 工具。"""
+    """注入 syscall_proxy 时，目录中可用工具应注册为 function-calling 工具。"""
     agent = ProductManagerAgent(llm=mock_llm, syscall_proxy=mock_syscall_proxy)
     for tool_id in BUILTIN_TOOL_IDS:
         assert agent.get_tool(tool_id) is not None, f"{tool_id} not registered"
@@ -284,17 +284,56 @@ def test_builtin_tools_registered_when_syscall_proxy_provided(
         assert "parameters" in agent._tool_schemas[tool_id]
 
 
-def test_builtin_tools_registered_with_unavailable_dispatcher_without_syscall_proxy(
-    mock_llm,
-):
-    """syscall_proxy=None 时注册显式报错分发器（非静默消失），调用返回失败原因。"""
+def test_no_tool_without_syscall_proxy(mock_llm):
+    """syscall_proxy=None 时不下发任何工具：能力清单 = 实际可执行集合。"""
     agent = ProductManagerAgent(llm=mock_llm, syscall_proxy=None)
-    dispatcher = agent.get_tool("fs_read")
-    assert dispatcher is not None, "工具不应静默消失，应注册显式报错分发器"
-    result = dispatcher({"path": "/tmp/a.txt"})
-    assert result["success"] is False
-    assert result["exit_code"] == 1
-    assert "未初始化" in result["error"]
+    assert agent.get_tool("fs_read") is None
+    assert agent._tool_schemas == {}
+    assert agent.degraded == ["syscall_proxy"]
+
+
+def test_catalog_unreachable_degrades(mock_llm, mock_syscall_proxy):
+    """目录拉取失败时不暴露任何工具，并显式记录 tool_catalog 降级信号。"""
+    mock_syscall_proxy.tool_list.side_effect = RuntimeError("tool_d down")
+    agent = ProductManagerAgent(llm=mock_llm, syscall_proxy=mock_syscall_proxy)
+    assert agent._tool_schemas == {}
+    assert "tool_catalog" in agent.degraded
+
+
+def test_catalog_unavailable_and_bad_schema_withheld(mock_llm, mock_syscall_proxy):
+    """不可用条目与缺少 input_schema 的条目不得进入模型清单。"""
+    mock_syscall_proxy.tool_list.return_value = [
+        {"id": "fs_read", "description": "ok", "available": True,
+         "input_schema": {"type": "object", "properties": {"path": {"type": "string"}},
+                          "required": ["path"]}},
+        {"id": "priv_exec", "description": "denied", "available": False,
+         "denied_reason": "acl", "input_schema": {"type": "object"}},
+        {"id": "broken", "description": "no schema", "available": True},
+    ]
+    agent = ProductManagerAgent(llm=mock_llm, syscall_proxy=mock_syscall_proxy)
+    assert set(agent._tool_schemas) == {"fs_read"}
+    assert "tool_catalog_empty" not in agent.degraded
+
+
+def test_no_static_schema_table():
+    """S-P1-15：策略侧不得再维护平行静态 schema 表（唯一来源为 tool_d 目录）。"""
+    from airymax_agents import base
+
+    assert not hasattr(base, "BUILTIN_TOOL_SCHEMAS")
+
+
+def test_catalog_ids_pass_through_without_whitelist(mock_llm, mock_syscall_proxy):
+    """目录新增工具（git_*/maths_*/priv_exec/未来 id）原样进入模型清单。"""
+    ids = ("git_exec", "git_diff", "maths_eval", "tool_create", "priv_exec",
+           "future_tool")
+    mock_syscall_proxy.tool_list.return_value = [
+        {"id": tool_id, "description": tool_id, "available": True,
+         "input_schema": {"type": "object", "properties": {}}}
+        for tool_id in ids
+    ]
+    agent = ProductManagerAgent(llm=mock_llm, syscall_proxy=mock_syscall_proxy)
+    assert set(agent._tool_schemas) == set(ids)
+    assert set(agent._tools) == set(ids)
 
 
 @pytest.mark.asyncio
@@ -312,22 +351,6 @@ async def test_builtin_tool_dispatcher_calls_tool_execute(
         "fs_read", {"path": "/tmp/a.txt"}, agent.agent_id
     )
     assert result["output"] == "file content"
-
-
-def test_builtin_tool_schemas_required_aligned_with_tool_d():
-    """BUILTIN_TOOL_SCHEMAS 的 required 必须齐备（tool_d validator 全参数必填）。"""
-    from airymax_agents.base import BUILTIN_TOOL_SCHEMAS
-
-    assert set(BUILTIN_TOOL_SCHEMAS) == set(BUILTIN_TOOL_IDS)
-    for tool_id, schema in BUILTIN_TOOL_SCHEMAS.items():
-        params = schema["parameters"]
-        assert params["type"] == "object"
-        required = params.get("required") or []
-        assert required, f"{tool_id} missing required"
-        for field in required:
-            assert field in params["properties"], (
-                f"{tool_id}.{field} required but not declared"
-            )
 
 
 # ── C-2 角色词汇表 SSoT：runner 限权归一化 ───────────────────

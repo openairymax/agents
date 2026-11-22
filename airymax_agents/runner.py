@@ -101,8 +101,13 @@ def _content_declares_failure(text: str) -> bool:
 # agent_vocab SSoT），下列本地表仅为 agent_d 不可达时的启动回退。
 _READONLY_LOCAL = frozenset({"tester", "reviewer"})
 
-# 写操作工具：从只读角色的工具注册表与 schema 中移除。
-WRITE_TOOLS = frozenset({"fs_write", "fs_edit", "fs_delete", "shell_run"})
+# 写操作工具：从只读角色的工具注册表与 schema 中移除。工具清单由 tool_d
+# 目录生成（S-P1-15），故凡是会改文件/改仓库/改系统状态的一律列入本表，
+# 新增写工具时必须同步追加，否则只读角色会被目录自动放行。
+WRITE_TOOLS = frozenset({
+    "fs_write", "fs_edit", "fs_delete", "shell_run",
+    "git_exec", "git_apply", "tool_create", "priv_exec",
+})
 
 # 运行期角色词汇表（agent.vocab 返回值），None 表示未加载/加载失败。
 _ROLE_VOCAB: Optional[dict] = None

@@ -34,6 +34,33 @@ for _p in (_AGENTS_DIR, _ORCH_DIR):
 # ── fixtures ─────────────────────────────────────────────
 
 
+#: tool_d list_tools 目录的最小替身（10 个内置工具，schema 形状与 C 侧一致）。
+_BUILTIN_CATALOG = [
+    {
+        "id": tool_id,
+        "description": f"{tool_id} (mock)",
+        "available": True,
+        "input_schema": {
+            "type": "object",
+            "properties": {field: {"type": "string"} for field in fields},
+            "required": list(fields),
+        },
+    }
+    for tool_id, fields in (
+        ("fs_read", ("path",)),
+        ("fs_write", ("path", "content")),
+        ("fs_list", ("path",)),
+        ("shell_run", ("command",)),
+        ("web_fetch", ("url",)),
+        ("fs_glob", ("pattern",)),
+        ("fs_grep", ("pattern",)),
+        ("fs_edit", ("path", "old", "new")),
+        ("fs_delete", ("path",)),
+        ("web_search", ("query",)),
+    )
+]
+
+
 @pytest.fixture
 def mock_syscall_proxy():
     """Mock 的 agentrt SyscallProxy，memory_* 方法返回合理预设值。"""
@@ -46,6 +73,7 @@ def mock_syscall_proxy():
     proxy.agent_terminate.return_value = True
     proxy.agent_invoke.return_value = "mock-invoke-output"
     proxy.agent_list.return_value = ["agent-mock-1"]
+    proxy.tool_list.return_value = [dict(entry) for entry in _BUILTIN_CATALOG]
     return proxy
 
 
