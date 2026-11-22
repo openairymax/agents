@@ -154,6 +154,20 @@ BUILTIN_TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {
 }
 
 
+#: SyscallProxy 缺失时注入系统提示词的降级说明（显式告知模型无工具可用）。
+#:
+#: 只写「事实 + 要求」，不写实现细节：模型据此直接向用户说明能力缺失，
+#: 而不是按有工具的假设生成调用计划并把工具轮次耗在必然失败的调用上。
+_NO_PROXY_NOTE = """
+
+## 运行环境限制（工具后端不可用）
+本次运行的 agentrt 工具后端（SyscallProxy）未初始化：文件读写、命令执行、
+网页抓取与网络搜索均不可用，且没有可调用的工具。请直接向用户说明这一点，
+并给出修复建议（安装或修复 agentrt Python SDK，确认 agent_d/tool_d/mem_d
+守护进程在运行）。不要尝试调用工具，也不要假装已经访问过文件或网络。
+"""
+
+
 class AirymaxAgent(LLMAgent):
     """所有 Airymax 内置 Agent 的基类。
 
@@ -165,8 +179,10 @@ class AirymaxAgent(LLMAgent):
 
     agentrt 系统调用代理（``syscall_proxy``）是可选的：
 
-      - ``None``（默认）：纯 Python LLM 模式，行为与重构前完全一致，
-        MockLLMClient 可跑、无 agentrt 依赖。
+      - ``None``（默认）：纯 Python LLM 模式，MockLLMClient 可跑、无 agentrt
+        依赖。此时 10 个内置工具**不暴露给模型**（能力清单与实际可执行集合
+        一致），系统提示词追加显式降级说明，``self.degraded`` 记录
+        ``"syscall_proxy"``，由 runner 的 ready 帧上报给 agent_d。
       - ``SyscallProxy(...)``：execute() 在 LLM 推理前后将输入上下文与
         最终结果写入 mem_d 守护进程持久化，便于跨会话/跨 Agent 检索。
         持久化失败不阻断 LLM 推理（仅记录 warning），保证业务可用性。
@@ -191,6 +207,8 @@ class AirymaxAgent(LLMAgent):
         if contract_overrides:
             contract = {**contract, **contract_overrides}
         system_prompt = self._load_system_prompt(agent_dir)
+        if syscall_proxy is None:
+            system_prompt += _NO_PROXY_NOTE
 
         super().__init__(
             contract=contract,
@@ -202,8 +220,10 @@ class AirymaxAgent(LLMAgent):
             else make_llm_client(default_model=os.environ.get("AIRY_MODEL_T1P")),
             system_prompt=system_prompt,
         )
-        # agentrt 系统调用代理（None 时为纯 Python 向后兼容模式）
+        # agentrt 系统调用代理（None 时为纯 Python 降级模式）
         self._sys = syscall_proxy
+        #: 降级信号：空表示能力完整；非空由 runner 写入 ready 帧上报 agent_d。
+        self.degraded = [] if syscall_proxy is not None else ["syscall_proxy"]
         # 任务工作目录（runner 每次 invoke 前设置，可随请求变化）：工具
         # dispatch 把相对路径解析为该目录内的绝对路径（tool_d 保持无状态，
         # 文件落点跟随任务而非 daemon cwd）。
@@ -211,11 +231,12 @@ class AirymaxAgent(LLMAgent):
         # 注入代理后注册 tool_d 内置工具（注册失败降级为纯 LLM，不阻断）
         self._register_builtin_tools()
         logger.debug(
-            "AirymaxAgent[%s] loaded from %s (role=%s, syscall=%s)",
+            "AirymaxAgent[%s] loaded from %s (role=%s, syscall=%s, degraded=%s)",
             self.agent_id,
             agent_dir,
             self.ROLE,
             "on" if self._sys is not None else "off",
+            self.degraded,
         )
 
     # ── 内置工具（tool_d 接线） ───────────────────────────
@@ -228,30 +249,32 @@ class AirymaxAgent(LLMAgent):
         注册失败仅记录 warning 并跳过该工具，不阻断 Agent 初始化
         （降级为纯 LLM 模式）。
 
-        2026-08-26 修复（防静默丢失）：SyscallProxy 不可用（_sys is None）
-        时不再让工具凭空消失——那样 LLM 完全不知道自己有工具能力缺失，
-        function-calling 直接无工具可用，subagent"无法使用工具"且无任何
-        可诊断信号。改为注册显式报错的分发器：LLM 调用时返回明确的失败
-        原因（SDK 缺失/损坏 → 提示修复路径），可诊断、可自愈。
+        2026-08-26 修复（防静默丢失）与 0.1.21 S-P0-11 的收敛：
+
+        - 工具不再凭空消失：SyscallProxy 不可用时仍注册显式报错分发器，
+          直接调用（诊断脚本、单测）能拿到确定原因，而不是 KeyError。
+        - 但**不把 schema 交给 LLM**：模型看到的工具清单必须等于实际可执行
+          集合，否则模型会按有工具的假设反复调用必然失败的工具，把工具轮次
+          耗在重试上（社区 issue 的「答非所问/轮次耗尽」之一）。降级事实改由
+          系统提示词、``self.degraded`` 与 runner 的 ready 帧三处显式上报。
         """
         if self._sys is None:
-            for tool_id, schema in BUILTIN_TOOL_SCHEMAS.items():
+            for tool_id in BUILTIN_TOOL_SCHEMAS:
                 try:
                     self.register_tool(
-                        tool_id,
-                        self._make_unavailable_dispatcher(tool_id),
-                        schema=schema,
-                    )
-                    logger.warning(
-                        "AirymaxAgent[%s] SyscallProxy 不可用：工具 '%s' 已注册为"
-                        "显式报错（调用将返回失败原因）",
-                        self.agent_id, tool_id,
+                        tool_id, self._make_unavailable_dispatcher(tool_id)
                     )
                 except Exception as e:
                     logger.warning(
-                        "AirymaxAgent[%s] register builtin tool '%s' failed: %s",
+                        "AirymaxAgent[%s] register degraded tool '%s' failed: %s",
                         self.agent_id, tool_id, e,
                     )
+            logger.error(
+                "AirymaxAgent[%s] SyscallProxy unavailable: %d builtin tools "
+                "withheld from the model (capability list matches the "
+                "executable set); degraded=%s",
+                self.agent_id, len(BUILTIN_TOOL_SCHEMAS), self.degraded,
+            )
             return
         for tool_id, schema in BUILTIN_TOOL_SCHEMAS.items():
             try:

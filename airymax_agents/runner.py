@@ -27,7 +27,9 @@
 设计原则 (Simplicity is beauty):
 
   - 与 agent_d 的 C 侧协议严格对齐（行分隔 JSON）
-  - SyscallProxy 初始化失败不阻断运行（退化为纯 Python LLM 模式）
+  - SyscallProxy 初始化失败不阻断运行（退化为纯 Python LLM 模式），
+    但降级事实必须显式上报：stderr 记 error，ready 帧带 ``degraded``/``reason``，
+    agent_d 据此在守护日志里留痕（0.1.21 S-P0-11）。
   - 单次 execute 异常不退出进程（写错误响应后继续下一轮）
 """
 
@@ -40,7 +42,7 @@ import logging
 import os
 import re
 import sys
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
 logger = logging.getLogger("runner")
 
@@ -171,15 +173,21 @@ def _parse_spec(spec_str: str) -> dict:
     return spec
 
 
-def _build_syscall_proxy() -> Optional[Any]:
-    """构建 agentrt SyscallProxy（IPC 后端）。失败返回 None（非致命）。"""
+def _build_syscall_proxy() -> Tuple[Optional[Any], str]:
+    """构建 agentrt SyscallProxy（IPC 后端）。
+
+    返回 ``(proxy, reason)``：失败时 proxy 为 None、reason 为失败原因，
+    且以 error 级别留痕——降级不能是静默的（0.1.21 S-P0-11）。
+    """
     try:
         from agentrt.syscall import SyscallProxy
 
-        return SyscallProxy(backend="ipc")
+        return SyscallProxy(backend="ipc"), ""
     except Exception as e:
-        logger.warning("SyscallProxy init failed (non-fatal): %s", e)
-        return None
+        logger.error("SyscallProxy init failed (degraded, no tools): %s", e)
+        # ready 帧受 agent_d 的定长读缓冲约束，超长会被截断成非法 JSON；
+        # 这里截到 120 字符，完整堆栈仍在 stderr 日志里。
+        return None, str(e)[:120]
 
 
 def _make_response(output: str = "", success: bool = True, error: str = "") -> str:
@@ -192,15 +200,25 @@ def _make_response(output: str = "", success: bool = True, error: str = "") -> s
     return json.dumps(resp, ensure_ascii=False)
 
 
-def _make_ready(role: str) -> str:
+def _make_ready(role: str, degraded: Optional[list] = None,
+                reason: str = "") -> str:
     """构建 ready 信号（spawn 存活校验协议，P0-2）。
 
     agent_d 的 service.c::agent_service_spawn 在 fork 后读取子进程
     stdout 的第一行，校验 ``{"ready":true}`` 确认子进程存活，失败则
     判定 spawn 失败并回收，不再静默回退 stub。该行在 spawn 阶段被
     消费，不会与 invoke 的 ``{"success":...}`` 响应混淆。
+
+    ``degraded`` 非空时附加降级清单与原因：agent_d 只把该帧当日志与
+    存活信号消费，不认识新字段时仍判 ready（向后兼容），认识的版本
+    会把降级写进守护日志（0.1.21 S-P0-11）。
     """
-    return json.dumps({"ready": True, "role": role}, ensure_ascii=False)
+    frame: dict = {"ready": True, "role": role}
+    if degraded:
+        frame["degraded"] = list(degraded)
+        if reason:
+            frame["reason"] = reason
+    return json.dumps(frame, ensure_ascii=False)
 
 
 async def _execute_once(agent: Any, agent_id: str, user_input: str) -> str:
@@ -256,8 +274,8 @@ def main() -> int:
         print(_make_response(success=False, error="spec missing 'role' field"), flush=True)
         return 1
 
-    # 2. 构建 SyscallProxy（可选，失败退化为纯 Python 模式）
-    syscall_proxy = _build_syscall_proxy()
+    # 2. 构建 SyscallProxy（可选，失败退化为纯 Python 模式并显式上报）
+    syscall_proxy, proxy_error = _build_syscall_proxy()
     # 角色词汇 SSoT：优先经 A-IPC 取权威词汇，失败保持本地回退表
     _load_role_vocab(syscall_proxy)
 
@@ -286,8 +304,11 @@ def main() -> int:
     else:
         logger.info("no project context file found (AGENTS.md/CLAUDE.md)")
 
-    # P0-2：spawn 存活校验协议 — 初始化完成后向 agent_d 发送 ready 信号
-    print(_make_ready(role), flush=True)
+    # P0-2：spawn 存活校验协议 — 初始化完成后向 agent_d 发送 ready 信号。
+    # 降级清单取自 agent 自身（实例属性），保证「上报的能力状态」与
+    # 「实际注册表」同源，不靠调用方二次推断（0.1.21 S-P0-11）。
+    degraded = list(getattr(agent, "degraded", []) or [])
+    print(_make_ready(role, degraded, proxy_error), flush=True)
 
     # 4. 主循环：逐行读取请求 → 执行 → 写响应
     for raw_line in sys.stdin:
