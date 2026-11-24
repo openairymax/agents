@@ -393,7 +393,10 @@ class LLMAgent(Agent):
         )
 
         try:
-            while rounds <= max_rounds:
+            # P1-4：与 C 侧 agent_run_loop 的 `for (i = 0; i < limit; i++)`
+            # 同口径——rounds 从 0 起算，`< max_rounds` 才是 max_rounds 轮；
+            # 此前 `<=` 多跑一轮（32 轮预算实跑 33 轮）。
+            while rounds < max_rounds:
                 resp = await self.llm.chat(
                     messages=messages,
                     model=model,
